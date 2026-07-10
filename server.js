@@ -18,7 +18,7 @@ const mimeTypes = {
   '.ico': 'image/x-icon'
 };
 
-function requestJson(url) {
+function requestJsonOnce(url) {
   return new Promise((resolve, reject) => {
     const request = https.get(url, {
       headers: { 'User-Agent': 'Mozilla/5.0 SKHynix-ADR-Premium-Monitor/1.0' }
@@ -41,6 +41,22 @@ function requestJson(url) {
     request.setTimeout(15000, () => request.destroy(new Error('Yahoo Finance request timed out')));
     request.on('error', reject);
   });
+}
+
+async function requestJson(url) {
+  const alternatives = [
+    url.replace('query1.finance.yahoo.com', 'query2.finance.yahoo.com'),
+    url
+  ];
+  const errors = [];
+  for (const endpoint of alternatives) {
+    try {
+      return await requestJsonOnce(endpoint);
+    } catch (error) {
+      errors.push(error.message);
+    }
+  }
+  throw new Error(errors.join(' / '));
 }
 
 function json(res, status, body) {
@@ -85,21 +101,27 @@ async function getYahooQuote(symbol) {
   };
 }
 
-async function getMarketData() {
+async function getAdrQuote(preferred, fallback) {
+  try {
+    return await getYahooQuote(preferred);
+  } catch (error) {
+    return getYahooQuote(fallback);
+  }
+}
+
+async function fetchMarketData() {
   const cutover = new Date('2026-07-13T00:00:00+09:00');
   const now = new Date();
   const preferredAdr = now >= cutover ? 'SKHY' : 'SKHYV';
   const adrCandidates = preferredAdr === 'SKHY' ? ['SKHY', 'SKHYV'] : ['SKHYV', 'SKHY'];
 
-  const [krx, fx, tsmcTaiwan, tsmcFx, ...adrResults] = await Promise.all([
+  const [krx, fx, tsmcTaiwan, tsmcFx, adr] = await Promise.all([
     getYahooQuote('000660.KS'),
     getYahooQuote('KRW=X'),
     getYahooQuote('2330.TW'),
     getYahooQuote('TWD=X'),
-    ...adrCandidates.map((symbol) => getYahooQuote(symbol).catch((error) => ({ error: error.message })))
+    getAdrQuote(adrCandidates[0], adrCandidates[1])
   ]);
-  const adr = adrResults.find((quote) => !quote.error);
-  if (!adr) throw new Error(adrResults.map((item) => item.error).join(' / '));
   const tsmcAdr = await getYahooQuote('TSM');
 
   return {
@@ -116,6 +138,26 @@ async function getMarketData() {
       fx: tsmcFx
     }
   };
+}
+
+let marketCache = null;
+let marketCacheAt = 0;
+let marketRequest = null;
+const marketCacheMs = 20000;
+
+async function getMarketData() {
+  if (marketCache && Date.now() - marketCacheAt < marketCacheMs) return marketCache;
+  if (marketRequest) return marketRequest;
+  marketRequest = fetchMarketData()
+    .then((data) => {
+      marketCache = data;
+      marketCacheAt = Date.now();
+      return data;
+    })
+    .finally(() => {
+      marketRequest = null;
+    });
+  return marketRequest;
 }
 
 async function serveStatic(req, res) {
