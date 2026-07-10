@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#07111f" />
+    <title>SK하이닉스 ADR 프리미엄 모니터</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <header class="topbar">
+        <div class="brand">
+          <div class="brand-mark">SK</div>
+          <div>
+            <p class="eyebrow">CROSS-MARKET MONITOR</p>
+            <h1>SK하이닉스 ADR 프리미엄</h1>
+          </div>
+        </div>
+        <div class="top-actions">
+          <span class="live-dot"><i></i>자동 갱신 <b id="refresh-countdown">30초</b></span>
+          <button id="refresh-button" class="icon-button" type="button" aria-label="새로고침" title="지금 새로고침">↻</button>
+        </div>
+      </header>
+
+      <section class="hero-grid">
+        <div class="hero-copy">
+          <p class="eyebrow">REAL-TIME INDICATIVE SPREAD</p>
+          <h2>같은 기업, 다른 시장.<br /><em>가격 차이를 한눈에.</em></h2>
+          <p class="hero-description">국내 보통주 가격을 ADR 비율과 원/달러 환율로 환산해 미국 ADR의 이론가격과 비교합니다.</p>
+          <div class="status-row">
+            <span class="market-pill"><i class="status-dot"></i><span id="krx-status">KRX 확인 중</span></span>
+            <span class="market-pill"><i class="status-dot blue"></i><span id="adr-status">NASDAQ 확인 중</span></span>
+          </div>
+        </div>
+
+        <div class="premium-card">
+          <div class="card-label"><span>ADR 프리미엄 / 할인</span><span id="premium-label">계산 중</span></div>
+          <div id="premium-value" class="premium-value neutral">—</div>
+          <div id="premium-caption" class="premium-caption">시장 데이터를 불러오는 중입니다</div>
+          <div class="sparkline-wrap"><svg id="premium-sparkline" viewBox="0 0 480 92" preserveAspectRatio="none" aria-label="프리미엄 추이"></svg></div>
+          <div class="sparkline-axis"><span>오늘 장중</span><span>현재</span></div>
+        </div>
+      </section>
+
+      <section class="overview-strip">
+        <div class="overview-heading"><div><p class="eyebrow">MARKET OVERVIEW</p><h2>두 ADR의 현재 프리미엄</h2></div><span class="overview-note">30초 자동 갱신</span></div>
+        <div class="overview-cards">
+          <article class="overview-card sk-overview"><div class="overview-card-head"><span>SK하이닉스</span><small>KRX ↔ NASDAQ</small></div><strong id="overview-sk-premium">—</strong><span id="overview-sk-caption">데이터 조회 중</span></article>
+          <article class="overview-card tsmc-overview"><div class="overview-card-head"><span>TSMC</span><small>TWSE ↔ NYSE</small></div><strong id="overview-tsmc-premium">—</strong><span id="overview-tsmc-caption">데이터 조회 중</span></article>
+        </div>
+      </section>
+
+      <section class="quote-grid">
+        <article class="quote-card">
+          <div class="quote-head"><div><span class="ticker krx">KRX</span><span class="exchange-name">한국거래소</span></div><span id="krx-market-state" class="state">—</span></div>
+          <h3>SK하이닉스</h3>
+          <div class="quote-price"><span id="krx-price">—</span><small>KRW</small></div>
+          <div class="quote-foot"><span>종목코드 000660</span><span id="krx-change">—</span></div>
+        </article>
+        <article class="quote-card">
+          <div class="quote-head"><div><span class="ticker nasdaq">NASDAQ</span><span class="exchange-name">미국 ADR</span></div><span id="adr-market-state" class="state">—</span></div>
+          <h3>SK하이닉스 <span id="adr-symbol">SKHYV</span></h3>
+          <div class="quote-price"><span id="adr-price">—</span><small>USD</small></div>
+          <div class="quote-foot"><span>1 ADS = 보통주 1/10</span><span id="adr-change">—</span></div>
+        </article>
+        <article class="quote-card fx-card">
+          <div class="quote-head"><div><span class="ticker fx">FX</span><span class="exchange-name">환율</span></div><span class="state">USD/KRW</span></div>
+          <h3>원 / 달러</h3>
+          <div class="quote-price"><span id="fx-price">—</span><small>KRW</small></div>
+          <div class="quote-foot"><span>1 USD 환산</span><span id="updated-at">—</span></div>
+        </article>
+      </section>
+
+      <details class="calculation-panel">
+        <summary class="section-heading"><div><p class="eyebrow">HOW IT IS CALCULATED</p><h2>프리미엄 계산식</h2></div><span class="last-updated">마지막 조회 <b id="last-updated">—</b></span></summary>
+        <div class="calculation-flow">
+          <div class="calc-step"><span class="step-number">01</span><span class="calc-label">국내 보통주</span><strong id="calc-krw">—</strong><small>KRW / 1주</small></div>
+          <span class="operator">×</span>
+          <div class="calc-step"><span class="step-number">02</span><span class="calc-label">ADR 비율</span><strong>1/10</strong><small>1 ADS = 0.1주</small></div>
+          <span class="operator">÷</span>
+          <div class="calc-step"><span class="step-number">03</span><span class="calc-label">USD/KRW</span><strong id="calc-fx">—</strong><small>환율</small></div>
+          <span class="operator">=</span>
+          <div class="calc-step result"><span class="step-number">04</span><span class="calc-label">ADR 이론가격</span><strong id="fair-price">—</strong><small>USD / 1 ADS</small></div>
+        </div>
+        <div class="formula-line"><span>프리미엄</span><code>(실제 ADR 가격 − ADR 이론가격) ÷ ADR 이론가격 × 100</code><span class="formula-result" id="formula-result">—</span></div>
+      </details>
+
+      <section class="secondary-section">
+        <div class="section-heading"><div><p class="eyebrow">SECOND MARKET PAIR</p><h2>TSMC ADR 프리미엄</h2></div><span class="last-updated">1 ADS = 대만 보통주 5주</span></div>
+        <div class="tsmc-summary-grid">
+          <div class="premium-card compact-premium-card">
+            <div class="card-label"><span>ADR 프리미엄 / 할인</span><span id="tsmc-premium-label">계산 중</span></div>
+            <div id="tsmc-premium-value" class="premium-value neutral">—</div>
+            <div id="tsmc-premium-caption" class="premium-caption">시장 데이터를 불러오는 중입니다</div>
+            <div class="sparkline-wrap"><svg id="tsmc-premium-sparkline" viewBox="0 0 480 92" preserveAspectRatio="none" aria-label="TSMC 프리미엄 추이"></svg></div>
+            <div class="sparkline-axis"><span>오늘 장중</span><span>현재</span></div>
+          </div>
+          <div class="quote-grid tsmc-quote-grid">
+            <article class="quote-card">
+              <div class="quote-head"><div><span class="ticker krx">TWSE</span><span class="exchange-name">대만거래소</span></div><span id="tsmc-local-market-state" class="state">—</span></div>
+              <h3>台積電 <span>2330.TW</span></h3>
+              <div class="quote-price"><span id="tsmc-local-price">—</span><small>TWD</small></div>
+              <div class="quote-foot"><span>대만 본주</span><span id="tsmc-local-change">—</span></div>
+            </article>
+            <article class="quote-card">
+              <div class="quote-head"><div><span class="ticker nasdaq">NYSE</span><span class="exchange-name">미국 ADR</span></div><span id="tsmc-adr-market-state" class="state">—</span></div>
+              <h3>TSMC <span>TSM</span></h3>
+              <div class="quote-price"><span id="tsmc-adr-price">—</span><small>USD</small></div>
+              <div class="quote-foot"><span>1 ADS = 본주 5주</span><span id="tsmc-adr-change">—</span></div>
+            </article>
+            <article class="quote-card fx-card">
+              <div class="quote-head"><div><span class="ticker fx">FX</span><span class="exchange-name">환율</span></div><span class="state">USD/TWD</span></div>
+              <h3>대만 달러 / 달러</h3>
+              <div class="quote-price"><span id="tsmc-fx-price">—</span><small>TWD</small></div>
+              <div class="quote-foot"><span>1 USD 환산</span><span id="tsmc-updated-at">—</span></div>
+            </article>
+          </div>
+        </div>
+        <details class="calculation-panel tsmc-calculation-panel">
+          <summary class="section-heading"><div><p class="eyebrow">HOW IT IS CALCULATED</p><h2>TSMC 계산식</h2></div><span class="last-updated">마지막 조회 <b id="tsmc-last-updated">—</b></span></summary>
+          <div class="calculation-flow">
+            <div class="calc-step"><span class="step-number">01</span><span class="calc-label">대만 본주</span><strong id="tsmc-calc-local">—</strong><small>TWD / 1주</small></div>
+            <span class="operator">×</span>
+            <div class="calc-step"><span class="step-number">02</span><span class="calc-label">ADR 비율</span><strong>5</strong><small>1 ADS = 5주</small></div>
+            <span class="operator">÷</span>
+            <div class="calc-step"><span class="step-number">03</span><span class="calc-label">USD/TWD</span><strong id="tsmc-calc-fx">—</strong><small>환율</small></div>
+            <span class="operator">=</span>
+            <div class="calc-step result"><span class="step-number">04</span><span class="calc-label">ADR 이론가격</span><strong id="tsmc-fair-price">—</strong><small>USD / 1 ADS</small></div>
+          </div>
+          <div class="formula-line"><span>프리미엄</span><code>(실제 ADR 가격 − ADR 이론가격) ÷ ADR 이론가격 × 100</code><span class="formula-result" id="tsmc-formula-result">—</span></div>
+        </details>
+      </section>
+
+      <footer class="footer"><span id="data-source">데이터 출처: Yahoo Finance 조회값</span><span>화면의 프리미엄은 환율·거래시간·데이터 지연에 따라 변동할 수 있습니다.</span></footer>
+      <div id="error-banner" class="error-banner" role="alert" hidden></div>
+    </main>
+    <script src="/app.js" type="module"></script>
+  </body>
+</html>
