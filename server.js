@@ -43,6 +43,34 @@ function requestJsonOnce(url) {
   });
 }
 
+function requestJsonViaProxy(url) {
+  const proxyUrl = `https://r.jina.ai/http://${url.replace(/^https:\/\//, '')}`;
+  return new Promise((resolve, reject) => {
+    const request = https.get(proxyUrl, {
+      headers: { 'User-Agent': 'Mozilla/5.0 SKHynix-ADR-Premium-Monitor/1.0' }
+    }, (response) => {
+      let body = '';
+      response.setEncoding('utf8');
+      response.on('data', (chunk) => { body += chunk; });
+      response.on('end', () => {
+        if (response.statusCode < 200 || response.statusCode >= 300) {
+          reject(new Error(`Proxy returned ${response.statusCode}`));
+          return;
+        }
+        try {
+          const jsonStart = body.indexOf('{');
+          if (jsonStart < 0) throw new Error('No JSON in proxy response');
+          resolve(JSON.parse(body.slice(jsonStart)));
+        } catch {
+          reject(new Error('Proxy returned invalid JSON'));
+        }
+      });
+    });
+    request.setTimeout(20000, () => request.destroy(new Error('Proxy request timed out')));
+    request.on('error', reject);
+  });
+}
+
 async function requestJson(url) {
   const alternatives = [
     url.replace('query1.finance.yahoo.com', 'query2.finance.yahoo.com'),
@@ -56,7 +84,12 @@ async function requestJson(url) {
       errors.push(error.message);
     }
   }
-  throw new Error(errors.join(' / '));
+  try {
+    return await requestJsonViaProxy(url);
+  } catch (error) {
+    errors.push(error.message);
+    throw new Error(errors.join(' / '));
+  }
 }
 
 function json(res, status, body) {
