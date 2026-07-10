@@ -13,6 +13,13 @@ function setText(selector, value) {
   if (element) element.textContent = value;
 }
 
+function setTrend(selector, value) {
+  const element = $(selector);
+  if (!element) return;
+  element.classList.toggle('positive', value >= 0);
+  element.classList.toggle('negative', value < 0);
+}
+
 function quoteChange(quote) {
   return Number.isFinite(quote.price) && Number.isFinite(quote.previousClose) && quote.previousClose !== 0
     ? (quote.price / quote.previousClose - 1) * 100
@@ -67,6 +74,8 @@ function render(data) {
   setText('#premium-value', signedPercent(premium));
   setText('#premium-label', premium >= 0 ? 'ADR 고평가' : 'ADR 저평가');
   setText('#premium-caption', `실제 ADR $${number(adr.price, 2)} · 이론가격 $${number(fairPrice, 2)}`);
+  setText('#overview-sk-premium', signedPercent(premium));
+  setText('#overview-sk-caption', `실제 $${number(adr.price, 2)} · 이론 $${number(fairPrice, 2)}`);
   setText('#last-updated', time(data.fetchedAt));
   setText('#updated-at', time(fx.marketTime || data.fetchedAt));
   setText('#data-source', `데이터 출처: Yahoo Finance · 조회 ${time(data.fetchedAt)}`);
@@ -75,6 +84,7 @@ function render(data) {
   premiumElement.classList.toggle('positive', premium >= 0);
   premiumElement.classList.toggle('negative', premium < 0);
   premiumElement.classList.remove('neutral');
+  setTrend('#overview-sk-premium', premium);
   renderSparkline(history, premium);
   renderTsmc(data);
 }
@@ -103,6 +113,8 @@ function renderTsmc(data) {
   setText('#tsmc-premium-value', signedPercent(premium));
   setText('#tsmc-premium-label', premium >= 0 ? 'ADR 고평가' : 'ADR 저평가');
   setText('#tsmc-premium-caption', `실제 ADR $${number(adr.price, 2)} · 이론가격 $${number(fairPrice, 2)}`);
+  setText('#overview-tsmc-premium', signedPercent(premium));
+  setText('#overview-tsmc-caption', `실제 ADR $${number(adr.price, 2)} · 이론 $${number(fairPrice, 2)}`);
   setText('#tsmc-last-updated', time(data.fetchedAt));
   setText('#tsmc-updated-at', time(fx.marketTime || data.fetchedAt));
 
@@ -110,6 +122,7 @@ function renderTsmc(data) {
   premiumElement.classList.toggle('positive', premium >= 0);
   premiumElement.classList.toggle('negative', premium < 0);
   premiumElement.classList.remove('neutral');
+  setTrend('#overview-tsmc-premium', premium);
   renderSparkline(tsmcHistory, premium);
 }
 

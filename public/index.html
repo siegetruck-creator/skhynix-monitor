@@ -46,6 +46,14 @@
         </div>
       </section>
 
+      <section class="overview-strip">
+        <div class="overview-heading"><div><p class="eyebrow">MARKET OVERVIEW</p><h2>두 ADR의 현재 프리미엄</h2></div><span class="overview-note">30초 자동 갱신</span></div>
+        <div class="overview-cards">
+          <article class="overview-card sk-overview"><div class="overview-card-head"><span>SK하이닉스</span><small>KRX ↔ NASDAQ</small></div><strong id="overview-sk-premium">—</strong><span id="overview-sk-caption">데이터 조회 중</span></article>
+          <article class="overview-card tsmc-overview"><div class="overview-card-head"><span>TSMC</span><small>TWSE ↔ NYSE</small></div><strong id="overview-tsmc-premium">—</strong><span id="overview-tsmc-caption">데이터 조회 중</span></article>
+        </div>
+      </section>
+
       <section class="quote-grid">
         <article class="quote-card">
           <div class="quote-head"><div><span class="ticker krx">KRX</span><span class="exchange-name">한국거래소</span></div><span id="krx-market-state" class="state">—</span></div>
@@ -67,8 +75,8 @@
         </article>
       </section>
 
-      <section class="calculation-panel">
-        <div class="section-heading"><div><p class="eyebrow">HOW IT IS CALCULATED</p><h2>프리미엄 계산식</h2></div><span class="last-updated">마지막 조회 <b id="last-updated">—</b></span></div>
+      <details class="calculation-panel">
+        <summary class="section-heading"><div><p class="eyebrow">HOW IT IS CALCULATED</p><h2>프리미엄 계산식</h2></div><span class="last-updated">마지막 조회 <b id="last-updated">—</b></span></summary>
         <div class="calculation-flow">
           <div class="calc-step"><span class="step-number">01</span><span class="calc-label">국내 보통주</span><strong id="calc-krw">—</strong><small>KRW / 1주</small></div>
           <span class="operator">×</span>
@@ -79,7 +87,7 @@
           <div class="calc-step result"><span class="step-number">04</span><span class="calc-label">ADR 이론가격</span><strong id="fair-price">—</strong><small>USD / 1 ADS</small></div>
         </div>
         <div class="formula-line"><span>프리미엄</span><code>(실제 ADR 가격 − ADR 이론가격) ÷ ADR 이론가격 × 100</code><span class="formula-result" id="formula-result">—</span></div>
-      </section>
+      </details>
 
       <section class="secondary-section">
         <div class="section-heading"><div><p class="eyebrow">SECOND MARKET PAIR</p><h2>TSMC ADR 프리미엄</h2></div><span class="last-updated">1 ADS = 대만 보통주 5주</span></div>
@@ -112,8 +120,8 @@
             </article>
           </div>
         </div>
-        <div class="calculation-panel tsmc-calculation-panel">
-          <div class="section-heading"><div><p class="eyebrow">HOW IT IS CALCULATED</p><h2>TSMC 계산식</h2></div><span class="last-updated">마지막 조회 <b id="tsmc-last-updated">—</b></span></div>
+        <details class="calculation-panel tsmc-calculation-panel">
+          <summary class="section-heading"><div><p class="eyebrow">HOW IT IS CALCULATED</p><h2>TSMC 계산식</h2></div><span class="last-updated">마지막 조회 <b id="tsmc-last-updated">—</b></span></summary>
           <div class="calculation-flow">
             <div class="calc-step"><span class="step-number">01</span><span class="calc-label">대만 본주</span><strong id="tsmc-calc-local">—</strong><small>TWD / 1주</small></div>
             <span class="operator">×</span>
@@ -124,7 +132,7 @@
             <div class="calc-step result"><span class="step-number">04</span><span class="calc-label">ADR 이론가격</span><strong id="tsmc-fair-price">—</strong><small>USD / 1 ADS</small></div>
           </div>
           <div class="formula-line"><span>프리미엄</span><code>(실제 ADR 가격 − ADR 이론가격) ÷ ADR 이론가격 × 100</code><span class="formula-result" id="tsmc-formula-result">—</span></div>
-        </div>
+        </details>
       </section>
 
       <footer class="footer"><span id="data-source">데이터 출처: Yahoo Finance 조회값</span><span>화면의 프리미엄은 환율·거래시간·데이터 지연에 따라 변동할 수 있습니다.</span></footer>
