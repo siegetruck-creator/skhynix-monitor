@@ -1,5 +1,6 @@
 const $ = (selector) => document.querySelector(selector);
 const history = [];
+const tsmcHistory = [];
 let secondsUntilRefresh = 30;
 
 const number = (value, digits = 0) => Number.isFinite(value) ? value.toLocaleString('ko-KR', { maximumFractionDigits: digits, minimumFractionDigits: digits }) : '—';
@@ -75,6 +76,41 @@ function render(data) {
   premiumElement.classList.toggle('negative', premium < 0);
   premiumElement.classList.remove('neutral');
   renderSparkline(history, premium);
+  renderTsmc(data);
+}
+
+function renderTsmc(data) {
+  const { local, adr, fx, ratio } = data.tsmc;
+  const localChange = quoteChange(local);
+  const adrChange = quoteChange(adr);
+  const fairPrice = local.price * ratio / fx.price;
+  const premium = ((adr.price - fairPrice) / fairPrice) * 100;
+
+  tsmcHistory.push(premium);
+  if (tsmcHistory.length > 45) tsmcHistory.shift();
+
+  setText('#tsmc-local-price', number(local.price, 2));
+  setText('#tsmc-adr-price', number(adr.price, 2));
+  setText('#tsmc-fx-price', number(fx.price, 4));
+  setText('#tsmc-local-change', signedPercent(localChange));
+  setText('#tsmc-adr-change', signedPercent(adrChange));
+  setText('#tsmc-local-market-state', marketState(local.marketState));
+  setText('#tsmc-adr-market-state', marketState(adr.marketState));
+  setText('#tsmc-calc-local', number(local.price, 2));
+  setText('#tsmc-calc-fx', number(fx.price, 4));
+  setText('#tsmc-fair-price', `$${number(fairPrice, 2)}`);
+  setText('#tsmc-formula-result', signedPercent(premium));
+  setText('#tsmc-premium-value', signedPercent(premium));
+  setText('#tsmc-premium-label', premium >= 0 ? 'ADR 고평가' : 'ADR 저평가');
+  setText('#tsmc-premium-caption', `실제 ADR $${number(adr.price, 2)} · 이론가격 $${number(fairPrice, 2)}`);
+  setText('#tsmc-last-updated', time(data.fetchedAt));
+  setText('#tsmc-updated-at', time(fx.marketTime || data.fetchedAt));
+
+  const premiumElement = $('#tsmc-premium-value');
+  premiumElement.classList.toggle('positive', premium >= 0);
+  premiumElement.classList.toggle('negative', premium < 0);
+  premiumElement.classList.remove('neutral');
+  renderSparkline(tsmcHistory, premium);
 }
 
 async function loadMarketData() {
@@ -86,7 +122,7 @@ async function loadMarketData() {
     const response = await fetch(`${apiBase}?ts=${Date.now()}`, { cache: 'no-store' });
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || '시장 데이터를 불러오지 못했습니다.');
-    if (!Number.isFinite(data.krx?.price) || !Number.isFinite(data.adr?.price) || !Number.isFinite(data.fx?.price)) {
+    if (!Number.isFinite(data.krx?.price) || !Number.isFinite(data.adr?.price) || !Number.isFinite(data.fx?.price) || !Number.isFinite(data.tsmc?.local?.price) || !Number.isFinite(data.tsmc?.adr?.price) || !Number.isFinite(data.tsmc?.fx?.price)) {
       throw new Error('국내주식·ADR·환율 중 일부 가격이 비어 있습니다. 잠시 후 다시 시도해 주세요.');
     }
     render(data);

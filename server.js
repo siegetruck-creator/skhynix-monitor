@@ -91,13 +91,16 @@ async function getMarketData() {
   const preferredAdr = now >= cutover ? 'SKHY' : 'SKHYV';
   const adrCandidates = preferredAdr === 'SKHY' ? ['SKHY', 'SKHYV'] : ['SKHYV', 'SKHY'];
 
-  const [krx, fx, ...adrResults] = await Promise.all([
+  const [krx, fx, tsmcTaiwan, tsmcFx, ...adrResults] = await Promise.all([
     getYahooQuote('000660.KS'),
     getYahooQuote('KRW=X'),
+    getYahooQuote('2330.TW'),
+    getYahooQuote('TWD=X'),
     ...adrCandidates.map((symbol) => getYahooQuote(symbol).catch((error) => ({ error: error.message })))
   ]);
   const adr = adrResults.find((quote) => !quote.error);
   if (!adr) throw new Error(adrResults.map((item) => item.error).join(' / '));
+  const tsmcAdr = await getYahooQuote('TSM');
 
   return {
     fetchedAt: Date.now(),
@@ -105,7 +108,13 @@ async function getMarketData() {
     cutover: cutover.toISOString(),
     krx,
     adr,
-    fx
+    fx,
+    tsmc: {
+      ratio: 5,
+      local: tsmcTaiwan,
+      adr: tsmcAdr,
+      fx: tsmcFx
+    }
   };
 }
 

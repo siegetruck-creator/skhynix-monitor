@@ -84,11 +84,18 @@ h2 em { color: var(--cyan); font-style: normal; }
 .formula-result { margin-left: auto; color: var(--cyan); font: 500 16px 'DM Mono', monospace; white-space: nowrap; }
 .footer { justify-content: space-between; gap: 14px; flex-wrap: wrap; font: 10px 'DM Mono', monospace; line-height: 1.6; }
 .error-banner { margin-top: 16px; border: 1px solid rgba(255,125,133,.35); background: rgba(255,125,133,.08); border-radius: 10px; padding: 12px; color: #ffb9be; font-size: 12px; }
+.secondary-section { margin-bottom: 42px; }
+.tsmc-summary-grid { display: grid; grid-template-columns: .78fr 1.22fr; gap: 14px; align-items: stretch; }
+.compact-premium-card { min-height: 100%; }
+.tsmc-quote-grid { grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 0; }
+.tsmc-calculation-panel { margin-top: 16px; margin-bottom: 0; }
 
 @media (max-width: 780px) {
   .shell { width: min(100% - 28px, 560px); padding-top: 22px; }
   .topbar { margin-bottom: 46px; }
   .hero-grid { grid-template-columns: 1fr; gap: 25px; }
+  .tsmc-summary-grid { grid-template-columns: 1fr; }
+  .tsmc-quote-grid { grid-template-columns: 1fr; }
   h2 { font-size: 42px; }
   .quote-grid { grid-template-columns: 1fr; }
   .calculation-flow { grid-template-columns: 1fr; gap: 8px; }
