@@ -3,12 +3,14 @@ const history = [];
 const tsmcHistory = [];
 const historyVisibility = { sk: true, tsmc: true };
 let renderedHistoryData = null;
-let secondsUntilRefresh = 30;
+const refreshIntervalSeconds = 300;
+let secondsUntilRefresh = refreshIntervalSeconds;
 
 const number = (value, digits = 0) => Number.isFinite(value) ? value.toLocaleString('ko-KR', { maximumFractionDigits: digits, minimumFractionDigits: digits }) : '—';
 const signedPercent = (value) => Number.isFinite(value) ? `${value >= 0 ? '+' : ''}${value.toFixed(2)}%` : '—';
 const time = (value) => value ? new Intl.DateTimeFormat('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false, timeZone: 'Asia/Seoul' }).format(new Date(value)) : '—';
 const marketState = (state) => ({ REGULAR: '장중', PRE: '프리마켓', POST: '애프터', CLOSED: '장 마감' }[state] || '확인 중');
+const refreshLabel = (seconds) => `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
 
 function setText(selector, value) {
   const element = $(selector);
@@ -264,7 +266,7 @@ async function loadMarketData() {
     banner.hidden = false;
   } finally {
     button?.classList.remove('loading');
-    secondsUntilRefresh = 30;
+    secondsUntilRefresh = refreshIntervalSeconds;
   }
 }
 
@@ -286,7 +288,7 @@ async function loadHistoryData() {
 $('#refresh-button')?.addEventListener('click', loadMarketData);
 setInterval(() => {
   secondsUntilRefresh = Math.max(0, secondsUntilRefresh - 1);
-  setText('#refresh-countdown', `${secondsUntilRefresh}초`);
+  setText('#refresh-countdown', refreshLabel(secondsUntilRefresh));
   if (secondsUntilRefresh === 0) loadMarketData();
 }, 1000);
 
