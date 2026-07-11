@@ -198,6 +198,6 @@ details.calculation-panel:not([open]) { padding-bottom: 14px; }
 @media (max-width: 600px) {
   .history-toolbar { align-items: flex-start; flex-direction: column; }
   .history-card, #history-chart { min-height: 320px; height: 320px; }
-  .history-card { overflow-x: auto; }
-  #history-chart { min-width: 760px; }
+  .history-card { overflow: hidden; }
+  #history-chart { min-width: 0; width: 100%; }
 }
