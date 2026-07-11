@@ -59,8 +59,9 @@ function requestJsonViaProxy(url) {
         }
         try {
           const jsonStart = body.indexOf('{');
-          if (jsonStart < 0) throw new Error('No JSON in proxy response');
-          resolve(JSON.parse(body.slice(jsonStart)));
+          const jsonEnd = body.lastIndexOf('}');
+          if (jsonStart < 0 || jsonEnd <= jsonStart) throw new Error('No JSON in proxy response');
+          resolve(JSON.parse(body.slice(jsonStart, jsonEnd + 1)));
         } catch {
           reject(new Error('Proxy returned invalid JSON'));
         }
@@ -134,11 +135,32 @@ async function getYahooQuote(symbol) {
   };
 }
 
+async function getYahooHistory(symbol) {
+  const url = `${yahooBase}${encodeURIComponent(symbol)}?interval=1mo&range=10y&includePrePost=false`;
+  const payload = await requestJson(url);
+  const result = payload?.chart?.result?.[0];
+  if (!result?.meta) throw new Error(`${symbol}: no historical data`);
+  const closes = result.indicators?.quote?.[0]?.close || [];
+  const points = (result.timestamp || [])
+    .map((timestamp, index) => ({ time: timestamp * 1000, price: Number(closes[index]) }))
+    .filter((point) => Number.isFinite(point.price));
+  if (!points.length) throw new Error(`${symbol}: no historical points`);
+  return { symbol, points };
+}
+
 async function getAdrQuote(preferred, fallback) {
   try {
     return await getYahooQuote(preferred);
   } catch (error) {
     return getYahooQuote(fallback);
+  }
+}
+
+async function getHistoryWithFallback(preferred, fallback) {
+  try {
+    return await getYahooHistory(preferred);
+  } catch (error) {
+    return getYahooHistory(fallback);
   }
 }
 
@@ -193,6 +215,77 @@ async function getMarketData() {
   return marketRequest;
 }
 
+function monthKey(timestamp) {
+  const date = new Date(timestamp);
+  return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}`;
+}
+
+function monthStart(key) {
+  return `${key}-01T00:00:00.000Z`;
+}
+
+function toMonthMap(history) {
+  return new Map(history.points.map((point) => [monthKey(point.time), point.price]));
+}
+
+let historyCache = null;
+let historyCacheAt = 0;
+let historyRequest = null;
+const historyCacheMs = 300000;
+
+async function fetchHistoryData() {
+  const market = await getMarketData();
+  const cutover = new Date('2026-07-13T00:00:00+09:00');
+  const preferredAdr = new Date() >= cutover ? 'SKHY' : 'SKHYV';
+  const fallbackAdr = preferredAdr === 'SKHY' ? 'SKHYV' : 'SKHY';
+  const [skLocal, skFx, skAdr, tsmcLocal, tsmcFx, tsmcAdr] = await Promise.all([
+    getYahooHistory('000660.KS'),
+    getYahooHistory('KRW=X'),
+    getHistoryWithFallback(preferredAdr, fallbackAdr),
+    getYahooHistory('2330.TW'),
+    getYahooHistory('TWD=X'),
+    getYahooHistory('TSM')
+  ]);
+
+  const maps = {
+    skLocal: toMonthMap(skLocal), skFx: toMonthMap(skFx), skAdr: toMonthMap(skAdr),
+    tsmcLocal: toMonthMap(tsmcLocal), tsmcFx: toMonthMap(tsmcFx), tsmcAdr: toMonthMap(tsmcAdr)
+  };
+  const keys = [...new Set([...maps.skLocal.keys(), ...maps.tsmcLocal.keys()])].sort();
+  const currentKey = monthKey(Date.now());
+  const ensureCurrent = (map, value) => map.set(currentKey, value);
+  ensureCurrent(maps.skLocal, market.krx.price);
+  ensureCurrent(maps.skFx, market.fx.price);
+  ensureCurrent(maps.skAdr, market.adr.price);
+  ensureCurrent(maps.tsmcLocal, market.tsmc.local.price);
+  ensureCurrent(maps.tsmcFx, market.tsmc.fx.price);
+  ensureCurrent(maps.tsmcAdr, market.tsmc.adr.price);
+  if (!keys.includes(currentKey)) keys.push(currentKey);
+  keys.sort();
+
+  const sk = keys.map((key) => {
+    const fair = maps.skLocal.get(key) && maps.skFx.get(key) ? maps.skLocal.get(key) / 10 / maps.skFx.get(key) : NaN;
+    const adr = maps.skAdr.get(key);
+    return { date: monthStart(key), premium: Number.isFinite(fair) && Number.isFinite(adr) ? (adr / fair - 1) * 100 : null };
+  });
+  const tsmc = keys.map((key) => {
+    const fair = maps.tsmcLocal.get(key) && maps.tsmcFx.get(key) ? maps.tsmcLocal.get(key) * 5 / maps.tsmcFx.get(key) : NaN;
+    const adr = maps.tsmcAdr.get(key);
+    return { date: monthStart(key), premium: Number.isFinite(fair) && Number.isFinite(adr) ? (adr / fair - 1) * 100 : null };
+  });
+
+  return { generatedAt: Date.now(), currentMonth: monthStart(currentKey), sk, tsmc };
+}
+
+async function getHistoryData() {
+  if (historyCache && Date.now() - historyCacheAt < historyCacheMs) return historyCache;
+  if (historyRequest) return historyRequest;
+  historyRequest = fetchHistoryData()
+    .then((data) => { historyCache = data; historyCacheAt = Date.now(); return data; })
+    .finally(() => { historyRequest = null; });
+  return historyRequest;
+}
+
 async function serveStatic(req, res) {
   const requestedPath = req.url === '/' ? '/index.html' : req.url.split('?')[0];
   const filePath = normalize(join(root, requestedPath));
@@ -219,6 +312,14 @@ const server = http.createServer(async (req, res) => {
       return json(res, 200, await getMarketData());
     } catch (error) {
       return json(res, 502, { error: error.message || 'Market data unavailable' });
+    }
+  }
+
+  if (pathname === '/api/history') {
+    try {
+      return json(res, 200, await getHistoryData());
+    } catch (error) {
+      return json(res, 502, { error: error.message || 'Historical market data unavailable' });
     }
   }
 
