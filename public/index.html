@@ -26,6 +26,14 @@
         </div>
       </header>
 
+      <section class="overview-strip">
+        <div class="overview-heading"><div><p class="eyebrow">MARKET OVERVIEW</p><h2>두 ADR의 현재 프리미엄</h2></div><span class="overview-note">30초 자동 갱신</span></div>
+        <div class="overview-cards">
+          <article class="overview-card sk-overview"><div class="overview-card-head"><span>SK하이닉스</span><small>KRX ↔ NASDAQ</small></div><strong id="overview-sk-premium">—</strong><span id="overview-sk-caption">데이터 조회 중</span></article>
+          <article class="overview-card tsmc-overview"><div class="overview-card-head"><span>TSMC</span><small>TWSE ↔ NYSE</small></div><strong id="overview-tsmc-premium">—</strong><span id="overview-tsmc-caption">데이터 조회 중</span></article>
+        </div>
+      </section>
+
       <section class="hero-grid">
         <div class="hero-copy">
           <p class="eyebrow">REAL-TIME INDICATIVE SPREAD</p>
@@ -43,14 +51,6 @@
           <div id="premium-caption" class="premium-caption">시장 데이터를 불러오는 중입니다</div>
           <div class="sparkline-wrap"><svg id="premium-sparkline" viewBox="0 0 480 92" preserveAspectRatio="none" aria-label="프리미엄 추이"></svg></div>
           <div class="sparkline-axis"><span>오늘 장중</span><span>현재</span></div>
-        </div>
-      </section>
-
-      <section class="overview-strip">
-        <div class="overview-heading"><div><p class="eyebrow">MARKET OVERVIEW</p><h2>두 ADR의 현재 프리미엄</h2></div><span class="overview-note">30초 자동 갱신</span></div>
-        <div class="overview-cards">
-          <article class="overview-card sk-overview"><div class="overview-card-head"><span>SK하이닉스</span><small>KRX ↔ NASDAQ</small></div><strong id="overview-sk-premium">—</strong><span id="overview-sk-caption">데이터 조회 중</span></article>
-          <article class="overview-card tsmc-overview"><div class="overview-card-head"><span>TSMC</span><small>TWSE ↔ NYSE</small></div><strong id="overview-tsmc-premium">—</strong><span id="overview-tsmc-caption">데이터 조회 중</span></article>
         </div>
       </section>
 
@@ -136,7 +136,7 @@
       </section>
 
       <section class="history-section">
-        <div class="section-heading"><div><p class="eyebrow">10-YEAR PREMIUM HISTORY</p><h2>월말 종가 기준 프리미엄 추이</h2></div><span class="last-updated">현재 월은 현재가 반영</span></div>
+        <div class="section-heading"><div><p class="eyebrow">10-YEAR PREMIUM HISTORY</p><h2>프리미엄 추이</h2></div><span class="last-updated">현재 월은 현재가 반영</span></div>
         <div class="history-toolbar"><div class="history-legend"><span><i class="legend-dot sk"></i>SK하이닉스 ADR</span><span><i class="legend-dot tsmc"></i>TSMC ADR</span></div><span class="history-note">월말 종가 · 자동 갱신</span></div>
         <div class="history-card"><svg id="history-chart" viewBox="0 0 1000 420" preserveAspectRatio="none" aria-label="최근 10년간 ADR 프리미엄 비교 그래프"></svg><div id="history-tooltip" class="history-tooltip" hidden></div><div id="history-loading" class="history-loading">최근 10년 데이터를 불러오는 중입니다</div></div>
         <p class="history-footnote">월별 종가 기준으로 계산한 프리미엄입니다. SK하이닉스 ADR은 상장 이후 데이터만 표시됩니다.</p>

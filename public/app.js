@@ -148,11 +148,8 @@ function renderHistory(data) {
   const endTime = endDate.getTime();
   const values = allPoints.map((point) => point.premium).filter(Number.isFinite);
   if (!values.length) throw new Error('그래프로 표시할 프리미엄 데이터가 없습니다.');
-  let min = Math.min(...values, 0);
-  let max = Math.max(...values, 0);
-  const margin = Math.max((max - min) * 0.12, 2);
-  min -= margin;
-  max += margin;
+  const min = -10;
+  const max = 40;
   const x = (timeValue) => pad.left + ((timeValue - startTime) / (endTime - startTime)) * plotWidth;
   const y = (value) => pad.top + ((max - value) / (max - min)) * plotHeight;
   const pathFor = (points) => {
@@ -168,8 +165,8 @@ function renderHistory(data) {
     return path.trim();
   };
   const grid = [];
-  for (let index = 0; index <= 4; index += 1) {
-    const value = max - ((max - min) * index / 4);
+  for (let index = 0; index <= 5; index += 1) {
+    const value = max - ((max - min) * index / 5);
     const lineY = y(value);
     grid.push(`<line x1="${pad.left}" y1="${lineY.toFixed(1)}" x2="${width - pad.right}" y2="${lineY.toFixed(1)}" class="chart-grid-line" /><text x="${pad.left - 10}" y="${(lineY + 4).toFixed(1)}" text-anchor="end" class="chart-axis-label">${signedPercent(value)}</text>`);
   }
@@ -183,23 +180,31 @@ function renderHistory(data) {
     ticks.push(`<line x1="${tickX.toFixed(1)}" y1="${pad.top}" x2="${tickX.toFixed(1)}" y2="${height - pad.bottom}" class="chart-grid-line vertical" /><text x="${tickX.toFixed(1)}" y="${height - 18}" text-anchor="middle" class="chart-axis-label">${year}</text>`);
   }
   const lastPoint = (points) => [...points].reverse().find((point) => Number.isFinite(point.premium));
-  const currentDots = series.map((item) => {
+  const currentDots = [...series].reverse().map((item) => {
     const point = lastPoint(item.values);
-    return point ? `<circle cx="${x(new Date(point.date).getTime()).toFixed(1)}" cy="${y(point.premium).toFixed(1)}" r="4.5" fill="${item.color}" class="chart-current-dot" />` : '';
+    return point ? `<circle cx="${x(new Date(point.date).getTime()).toFixed(1)}" cy="${y(point.premium).toFixed(1)}" r="6" fill="${item.color}" class="chart-current-dot" />` : '';
   }).join('');
   const paths = series.map((item) => `<path d="${pathFor(item.values)}" fill="none" stroke="${item.color}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />`).join('');
   const hoverPoints = series.flatMap((item) => item.values.filter((point) => Number.isFinite(point.premium)).map((point) => {
     const pointX = x(new Date(point.date).getTime()).toFixed(1);
     const pointY = y(point.premium).toFixed(1);
-    const month = new Intl.DateTimeFormat('ko-KR', { year: 'numeric', month: 'long', timeZone: 'UTC' }).format(new Date(point.date));
-    return `<circle cx="${pointX}" cy="${pointY}" r="8" class="chart-hover-point" data-series="${item.name}" data-month="${month}" data-premium="${point.premium.toFixed(1)}" />`;
+    return `<circle cx="${pointX}" cy="${pointY}" r="8" class="chart-hover-point" data-date="${point.date}" />`;
   })).join('');
-  svg.innerHTML = `${grid.join('')}${ticks.join('')}${paths}${currentDots}${hoverPoints}`;
+  const hoverLayer = `<rect x="${pad.left}" y="${pad.top}" width="${plotWidth}" height="${plotHeight}" class="chart-hover-layer" />`;
+  svg.innerHTML = `${grid.join('')}${ticks.join('')}${paths}${hoverPoints}${hoverLayer}${currentDots}`;
   const tooltip = $('#history-tooltip');
   const card = svg.closest('.history-card');
-  const showTooltip = (point, event) => {
+  const dateTimes = [...new Set(allPoints.map((point) => new Date(point.date).getTime()))].sort((a, b) => a - b);
+  const showTooltip = (dateTime, event) => {
     if (!tooltip || !card) return;
-    tooltip.innerHTML = `<strong>${point.dataset.series}</strong><span>${point.dataset.month} · ${point.dataset.premium >= 0 ? '+' : ''}${point.dataset.premium}%</span>`;
+    const month = new Intl.DateTimeFormat('ko-KR', { year: 'numeric', month: 'long', timeZone: 'UTC' }).format(new Date(dateTime));
+    const rows = series.map((item) => {
+      const point = item.values.find((value) => new Date(value.date).getTime() === dateTime);
+      if (!point || !Number.isFinite(point.premium)) return '';
+      return `<span><i class="tooltip-dot" style="background:${item.color}"></i>${item.name} <b>${point.premium >= 0 ? '+' : ''}${point.premium.toFixed(1)}%</b></span>`;
+    }).filter(Boolean).join('');
+    if (!rows) { tooltip.hidden = true; return; }
+    tooltip.innerHTML = `<strong>${month}</strong>${rows}`;
     tooltip.hidden = false;
     const cardRect = card.getBoundingClientRect();
     const tooltipWidth = tooltip.offsetWidth;
@@ -209,11 +214,16 @@ function renderHistory(data) {
     tooltip.style.left = `${left}px`;
     tooltip.style.top = `${top}px`;
   };
-  svg.querySelectorAll('.chart-hover-point').forEach((point) => {
-    point.addEventListener('mouseenter', (event) => showTooltip(point, event));
-    point.addEventListener('mousemove', (event) => showTooltip(point, event));
-    point.addEventListener('mouseleave', () => { if (tooltip) tooltip.hidden = true; });
+  const hoverLayerElement = svg.querySelector('.chart-hover-layer');
+  hoverLayerElement?.addEventListener('mousemove', (event) => {
+    const bounds = svg.getBoundingClientRect();
+    const svgX = ((event.clientX - bounds.left) / bounds.width) * width;
+    const timeAtPointer = startTime + ((svgX - pad.left) / plotWidth) * (endTime - startTime);
+    if (timeAtPointer > currentTime) { tooltip.hidden = true; return; }
+    const nearest = dateTimes.reduce((best, candidate) => Math.abs(candidate - timeAtPointer) < Math.abs(best - timeAtPointer) ? candidate : best, dateTimes[0]);
+    showTooltip(nearest, event);
   });
+  hoverLayerElement?.addEventListener('mouseleave', () => { if (tooltip) tooltip.hidden = true; });
   if (loading) loading.hidden = true;
 }
 
