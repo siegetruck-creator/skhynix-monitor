@@ -1,6 +1,8 @@
 const $ = (selector) => document.querySelector(selector);
 const history = [];
 const tsmcHistory = [];
+const historyVisibility = { sk: true, tsmc: true };
+let renderedHistoryData = null;
 let secondsUntilRefresh = 30;
 
 const number = (value, digits = 0) => Number.isFinite(value) ? value.toLocaleString('ko-KR', { maximumFractionDigits: digits, minimumFractionDigits: digits }) : '—';
@@ -131,6 +133,7 @@ function renderTsmc(data) {
 }
 
 function renderHistory(data) {
+  renderedHistoryData = data;
   const svg = $('#history-chart');
   const loading = $('#history-loading');
   if (!svg) return;
@@ -141,8 +144,8 @@ function renderHistory(data) {
   const plotWidth = width - pad.left - pad.right;
   const plotHeight = height - pad.top - pad.bottom;
   const series = [
-    { values: data.sk, color: '#55e4c1', name: 'SK하이닉스 ADR' },
-    { values: data.tsmc, color: '#7ba9ff', name: 'TSMC ADR' }
+    { key: 'sk', values: data.sk, color: '#55e4c1', name: 'SK하이닉스 ADR' },
+    { key: 'tsmc', values: data.tsmc, color: '#7ba9ff', name: 'TSMC ADR' }
   ];
   const allPoints = series.flatMap((item) => item.values);
   const startTime = Math.min(...allPoints.map((point) => new Date(point.date).getTime()));
@@ -185,12 +188,12 @@ function renderHistory(data) {
     ticks.push(`<line x1="${tickX.toFixed(1)}" y1="${pad.top}" x2="${tickX.toFixed(1)}" y2="${height - pad.bottom}" class="chart-grid-line vertical" /><text x="${tickX.toFixed(1)}" y="${height - 18}" text-anchor="middle" class="chart-axis-label">${year}</text>`);
   }
   const lastPoint = (points) => [...points].reverse().find((point) => Number.isFinite(point.premium));
-  const currentDots = [...series].reverse().map((item) => {
+  const currentDots = [...series].filter((item) => historyVisibility[item.key]).reverse().map((item) => {
     const point = lastPoint(item.values);
     return point ? `<circle cx="${x(new Date(point.date).getTime()).toFixed(1)}" cy="${y(point.premium).toFixed(1)}" r="6" fill="${item.color}" class="chart-current-dot" />` : '';
   }).join('');
-  const paths = series.map((item) => `<path d="${pathFor(item.values)}" fill="none" stroke="${item.color}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />`).join('');
-  const hoverPoints = series.flatMap((item) => item.values.filter((point) => Number.isFinite(point.premium)).map((point) => {
+  const paths = series.filter((item) => historyVisibility[item.key]).map((item) => `<path d="${pathFor(item.values)}" fill="none" stroke="${item.color}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />`).join('');
+  const hoverPoints = series.filter((item) => historyVisibility[item.key]).flatMap((item) => item.values.filter((point) => Number.isFinite(point.premium)).map((point) => {
     const pointX = x(new Date(point.date).getTime()).toFixed(1);
     const pointY = y(point.premium).toFixed(1);
     return `<circle cx="${pointX}" cy="${pointY}" r="8" class="chart-hover-point" data-date="${point.date}" />`;
@@ -203,7 +206,7 @@ function renderHistory(data) {
   const showTooltip = (dateTime, event) => {
     if (!tooltip || !card) return;
     const month = new Intl.DateTimeFormat('ko-KR', { year: 'numeric', month: 'long', timeZone: 'UTC' }).format(new Date(dateTime));
-    const rows = series.map((item) => {
+    const rows = series.filter((item) => historyVisibility[item.key]).map((item) => {
       const point = item.values.find((value) => new Date(value.date).getTime() === dateTime);
       if (!point || !Number.isFinite(point.premium)) return '';
       return `<span><i class="tooltip-dot" style="background:${item.color}"></i>${item.name} <b>${point.premium >= 0 ? '+' : ''}${point.premium.toFixed(1)}%</b></span>`;
@@ -229,6 +232,15 @@ function renderHistory(data) {
     showTooltip(nearest, event);
   });
   hoverLayerElement?.addEventListener('mouseleave', () => { if (tooltip) tooltip.hidden = true; });
+  document.querySelectorAll('.history-legend-item').forEach((button) => {
+    const key = button.dataset.series;
+    button.classList.toggle('is-disabled', !historyVisibility[key]);
+    button.setAttribute('aria-pressed', String(historyVisibility[key]));
+    button.onclick = () => {
+      historyVisibility[key] = !historyVisibility[key];
+      if (renderedHistoryData) renderHistory(renderedHistoryData);
+    };
+  });
   if (loading) loading.hidden = true;
 }
 

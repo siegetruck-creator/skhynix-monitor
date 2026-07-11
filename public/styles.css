@@ -170,6 +170,9 @@ details.calculation-panel:not([open]) { padding-bottom: 14px; }
 .history-toolbar { display: flex; justify-content: space-between; align-items: center; gap: 14px; margin: -4px 0 13px; color: var(--muted); font: 10px 'DM Mono', monospace; }
 .history-legend { display: flex; align-items: center; gap: 18px; }
 .history-legend span { display: inline-flex; align-items: center; gap: 7px; }
+.history-legend-item { display: inline-flex; align-items: center; gap: 7px; border: 0; padding: 0; background: transparent; color: var(--muted); font: 10px 'DM Mono', monospace; cursor: pointer; transition: opacity .18s ease; }
+.history-legend-item:hover { color: var(--text); }
+.history-legend-item.is-disabled { opacity: .32; text-decoration: line-through; }
 .legend-dot { width: 8px; height: 8px; display: inline-block; border-radius: 50%; }
 .legend-dot.sk { background: var(--cyan); }
 .legend-dot.tsmc { background: var(--blue); }
