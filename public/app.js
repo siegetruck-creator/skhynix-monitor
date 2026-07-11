@@ -126,6 +126,74 @@ function renderTsmc(data) {
   renderSparkline(tsmcHistory, premium);
 }
 
+function renderHistory(data) {
+  const svg = $('#history-chart');
+  const loading = $('#history-loading');
+  if (!svg) return;
+
+  const width = 1000;
+  const height = 420;
+  const pad = { top: 22, right: 25, bottom: 48, left: 66 };
+  const plotWidth = width - pad.left - pad.right;
+  const plotHeight = height - pad.top - pad.bottom;
+  const series = [
+    { values: data.sk, color: '#55e4c1', name: 'SK하이닉스 ADR' },
+    { values: data.tsmc, color: '#7ba9ff', name: 'TSMC ADR' }
+  ];
+  const allPoints = series.flatMap((item) => item.values);
+  const startTime = Math.min(...allPoints.map((point) => new Date(point.date).getTime()));
+  const currentTime = new Date(data.currentMonth).getTime();
+  const endDate = new Date(data.currentMonth);
+  endDate.setUTCMonth(endDate.getUTCMonth() + 12);
+  const endTime = endDate.getTime();
+  const values = allPoints.map((point) => point.premium).filter(Number.isFinite);
+  if (!values.length) throw new Error('그래프로 표시할 프리미엄 데이터가 없습니다.');
+  let min = Math.min(...values, 0);
+  let max = Math.max(...values, 0);
+  const margin = Math.max((max - min) * 0.12, 2);
+  min -= margin;
+  max += margin;
+  const x = (timeValue) => pad.left + ((timeValue - startTime) / (endTime - startTime)) * plotWidth;
+  const y = (value) => pad.top + ((max - value) / (max - min)) * plotHeight;
+  const pathFor = (points) => {
+    let path = '';
+    let connected = false;
+    for (const point of points) {
+      if (!Number.isFinite(point.premium)) {
+        connected = false;
+        continue;
+      }
+      path += `${connected ? 'L' : 'M'}${x(new Date(point.date).getTime()).toFixed(1)},${y(point.premium).toFixed(1)} `;
+      connected = true;
+    }
+    return path.trim();
+  };
+  const grid = [];
+  for (let index = 0; index <= 4; index += 1) {
+    const value = max - ((max - min) * index / 4);
+    const lineY = y(value);
+    grid.push(`<line x1="${pad.left}" y1="${lineY.toFixed(1)}" x2="${width - pad.right}" y2="${lineY.toFixed(1)}" class="chart-grid-line" /><text x="${pad.left - 10}" y="${(lineY + 4).toFixed(1)}" text-anchor="end" class="chart-axis-label">${signedPercent(value)}</text>`);
+  }
+  const ticks = [];
+  const startYear = new Date(startTime).getUTCFullYear();
+  const endYear = endDate.getUTCFullYear();
+  for (let year = startYear; year <= endYear; year += 2) {
+    const tickTime = Date.UTC(year, 0, 1);
+    if (tickTime < startTime || tickTime > endTime) continue;
+    const tickX = x(tickTime);
+    ticks.push(`<line x1="${tickX.toFixed(1)}" y1="${pad.top}" x2="${tickX.toFixed(1)}" y2="${height - pad.bottom}" class="chart-grid-line vertical" /><text x="${tickX.toFixed(1)}" y="${height - 18}" text-anchor="middle" class="chart-axis-label">${year}</text>`);
+  }
+  const currentX = x(currentTime);
+  const lastPoint = (points) => [...points].reverse().find((point) => Number.isFinite(point.premium));
+  const currentDots = series.map((item) => {
+    const point = lastPoint(item.values);
+    return point ? `<circle cx="${x(new Date(point.date).getTime()).toFixed(1)}" cy="${y(point.premium).toFixed(1)}" r="4.5" fill="${item.color}" class="chart-current-dot" />` : '';
+  }).join('');
+  const paths = series.map((item) => `<path d="${pathFor(item.values)}" fill="none" stroke="${item.color}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />`).join('');
+  svg.innerHTML = `<rect x="${currentX.toFixed(1)}" y="${pad.top}" width="${Math.max(0, width - pad.right - currentX).toFixed(1)}" height="${plotHeight}" class="chart-future-zone" />${grid.join('')}${ticks.join('')}<line x1="${currentX.toFixed(1)}" y1="${pad.top}" x2="${currentX.toFixed(1)}" y2="${height - pad.bottom}" class="chart-now-line" /><text x="${(currentX + 8).toFixed(1)}" y="${pad.top + 16}" class="chart-now-label">현재</text>${paths}${currentDots}<text x="${(currentX + (width - pad.right - currentX) / 2).toFixed(1)}" y="${(pad.top + plotHeight / 2 + 4).toFixed(1)}" text-anchor="middle" class="chart-future-label">향후 1년 여백</text>`;
+  if (loading) loading.hidden = true;
+}
+
 async function loadMarketData() {
   const button = $('#refresh-button');
   button?.classList.add('loading');
@@ -150,6 +218,21 @@ async function loadMarketData() {
   }
 }
 
+async function loadHistoryData() {
+  try {
+    const response = await fetch(`/api/history?ts=${Date.now()}`, { cache: 'no-store' });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || '과거 데이터를 불러오지 못했습니다.');
+    renderHistory(data);
+  } catch (error) {
+    const loading = $('#history-loading');
+    if (loading) {
+      loading.hidden = false;
+      loading.textContent = `과거 데이터를 불러오지 못했습니다: ${error.message}`;
+    }
+  }
+}
+
 $('#refresh-button')?.addEventListener('click', loadMarketData);
 setInterval(() => {
   secondsUntilRefresh = Math.max(0, secondsUntilRefresh - 1);
@@ -158,3 +241,4 @@ setInterval(() => {
 }, 1000);
 
 loadMarketData();
+loadHistoryData();
