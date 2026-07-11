@@ -81,9 +81,11 @@ function render(data) {
   setText('#data-source', `데이터 출처: Yahoo Finance · 조회 ${time(data.fetchedAt)}`);
 
   const premiumElement = $('#premium-value');
-  premiumElement.classList.toggle('positive', premium >= 0);
-  premiumElement.classList.toggle('negative', premium < 0);
-  premiumElement.classList.remove('neutral');
+  if (premiumElement) {
+    premiumElement.classList.toggle('positive', premium >= 0);
+    premiumElement.classList.toggle('negative', premium < 0);
+    premiumElement.classList.remove('neutral');
+  }
   setTrend('#overview-sk-premium', premium);
   renderSparkline(history, premium);
   renderTsmc(data);
@@ -119,9 +121,11 @@ function renderTsmc(data) {
   setText('#tsmc-updated-at', time(fx.marketTime || data.fetchedAt));
 
   const premiumElement = $('#tsmc-premium-value');
-  premiumElement.classList.toggle('positive', premium >= 0);
-  premiumElement.classList.toggle('negative', premium < 0);
-  premiumElement.classList.remove('neutral');
+  if (premiumElement) {
+    premiumElement.classList.toggle('positive', premium >= 0);
+    premiumElement.classList.toggle('negative', premium < 0);
+    premiumElement.classList.remove('neutral');
+  }
   setTrend('#overview-tsmc-premium', premium);
   renderSparkline(tsmcHistory, premium);
 }
@@ -168,7 +172,8 @@ function renderHistory(data) {
   for (let index = 0; index <= 5; index += 1) {
     const value = max - ((max - min) * index / 5);
     const lineY = y(value);
-    grid.push(`<line x1="${pad.left}" y1="${lineY.toFixed(1)}" x2="${width - pad.right}" y2="${lineY.toFixed(1)}" class="chart-grid-line" /><text x="${pad.left - 10}" y="${(lineY + 4).toFixed(1)}" text-anchor="end" class="chart-axis-label">${signedPercent(value)}</text>`);
+    const axisLabel = `${value >= 0 ? '+' : ''}${Math.round(value)}%`;
+    grid.push(`<line x1="${pad.left}" y1="${lineY.toFixed(1)}" x2="${width - pad.right}" y2="${lineY.toFixed(1)}" class="chart-grid-line" /><text x="${pad.left - 10}" y="${(lineY + 4).toFixed(1)}" text-anchor="end" class="chart-axis-label">${axisLabel}</text>`);
   }
   const ticks = [];
   const startYear = new Date(startTime).getUTCFullYear();
