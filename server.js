@@ -215,17 +215,24 @@ async function getMarketData() {
   return marketRequest;
 }
 
-function monthKey(timestamp) {
-  const date = new Date(timestamp);
-  return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}`;
+function monthKey(timestamp, timeZone = 'UTC') {
+  const parts = new Intl.DateTimeFormat('en-US', { timeZone, year: 'numeric', month: '2-digit' }).formatToParts(new Date(timestamp));
+  const year = parts.find((part) => part.type === 'year')?.value;
+  const month = parts.find((part) => part.type === 'month')?.value;
+  return `${year}-${month}`;
 }
 
 function monthStart(key) {
   return `${key}-01T00:00:00.000Z`;
 }
 
-function toMonthMap(history) {
-  return new Map(history.points.map((point) => [monthKey(point.time), point.price]));
+function toMonthMap(history, timeZone) {
+  const map = new Map();
+  for (const point of [...history.points].sort((a, b) => a.time - b.time)) {
+    // The last monthly close in a month wins, which also handles month-end holidays.
+    map.set(monthKey(point.time, timeZone), point.price);
+  }
+  return map;
 }
 
 let historyCache = null;
@@ -248,11 +255,11 @@ async function fetchHistoryData() {
   ]);
 
   const maps = {
-    skLocal: toMonthMap(skLocal), skFx: toMonthMap(skFx), skAdr: toMonthMap(skAdr),
-    tsmcLocal: toMonthMap(tsmcLocal), tsmcFx: toMonthMap(tsmcFx), tsmcAdr: toMonthMap(tsmcAdr)
+    skLocal: toMonthMap(skLocal, 'Asia/Seoul'), skFx: toMonthMap(skFx, 'Asia/Seoul'), skAdr: toMonthMap(skAdr, 'Asia/Seoul'),
+    tsmcLocal: toMonthMap(tsmcLocal, 'Asia/Taipei'), tsmcFx: toMonthMap(tsmcFx, 'Asia/Taipei'), tsmcAdr: toMonthMap(tsmcAdr, 'Asia/Taipei')
   };
   const keys = [...new Set([...maps.skLocal.keys(), ...maps.tsmcLocal.keys()])].sort();
-  const currentKey = monthKey(Date.now());
+  const currentKey = monthKey(Date.now(), 'Asia/Seoul');
   const ensureCurrent = (map, value) => map.set(currentKey, value);
   ensureCurrent(maps.skLocal, market.krx.price);
   ensureCurrent(maps.skFx, market.fx.price);
