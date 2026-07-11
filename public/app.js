@@ -160,7 +160,6 @@ function renderHistory(data) {
     let connected = false;
     for (const point of points) {
       if (!Number.isFinite(point.premium)) {
-        connected = false;
         continue;
       }
       path += `${connected ? 'L' : 'M'}${x(new Date(point.date).getTime()).toFixed(1)},${y(point.premium).toFixed(1)} `;
@@ -183,14 +182,38 @@ function renderHistory(data) {
     const tickX = x(tickTime);
     ticks.push(`<line x1="${tickX.toFixed(1)}" y1="${pad.top}" x2="${tickX.toFixed(1)}" y2="${height - pad.bottom}" class="chart-grid-line vertical" /><text x="${tickX.toFixed(1)}" y="${height - 18}" text-anchor="middle" class="chart-axis-label">${year}</text>`);
   }
-  const currentX = x(currentTime);
   const lastPoint = (points) => [...points].reverse().find((point) => Number.isFinite(point.premium));
   const currentDots = series.map((item) => {
     const point = lastPoint(item.values);
     return point ? `<circle cx="${x(new Date(point.date).getTime()).toFixed(1)}" cy="${y(point.premium).toFixed(1)}" r="4.5" fill="${item.color}" class="chart-current-dot" />` : '';
   }).join('');
   const paths = series.map((item) => `<path d="${pathFor(item.values)}" fill="none" stroke="${item.color}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />`).join('');
-  svg.innerHTML = `<rect x="${currentX.toFixed(1)}" y="${pad.top}" width="${Math.max(0, width - pad.right - currentX).toFixed(1)}" height="${plotHeight}" class="chart-future-zone" />${grid.join('')}${ticks.join('')}<line x1="${currentX.toFixed(1)}" y1="${pad.top}" x2="${currentX.toFixed(1)}" y2="${height - pad.bottom}" class="chart-now-line" /><text x="${(currentX + 8).toFixed(1)}" y="${pad.top + 16}" class="chart-now-label">현재</text>${paths}${currentDots}<text x="${(currentX + (width - pad.right - currentX) / 2).toFixed(1)}" y="${(pad.top + plotHeight / 2 + 4).toFixed(1)}" text-anchor="middle" class="chart-future-label">향후 1년 여백</text>`;
+  const hoverPoints = series.flatMap((item) => item.values.filter((point) => Number.isFinite(point.premium)).map((point) => {
+    const pointX = x(new Date(point.date).getTime()).toFixed(1);
+    const pointY = y(point.premium).toFixed(1);
+    const month = new Intl.DateTimeFormat('ko-KR', { year: 'numeric', month: 'long', timeZone: 'UTC' }).format(new Date(point.date));
+    return `<circle cx="${pointX}" cy="${pointY}" r="8" class="chart-hover-point" data-series="${item.name}" data-month="${month}" data-premium="${point.premium.toFixed(1)}" />`;
+  })).join('');
+  svg.innerHTML = `${grid.join('')}${ticks.join('')}${paths}${currentDots}${hoverPoints}`;
+  const tooltip = $('#history-tooltip');
+  const card = svg.closest('.history-card');
+  const showTooltip = (point, event) => {
+    if (!tooltip || !card) return;
+    tooltip.innerHTML = `<strong>${point.dataset.series}</strong><span>${point.dataset.month} · ${point.dataset.premium >= 0 ? '+' : ''}${point.dataset.premium}%</span>`;
+    tooltip.hidden = false;
+    const cardRect = card.getBoundingClientRect();
+    const tooltipWidth = tooltip.offsetWidth;
+    const tooltipHeight = tooltip.offsetHeight;
+    const left = Math.min(cardRect.width - tooltipWidth - 10, Math.max(10, event.clientX - cardRect.left + 12));
+    const top = Math.min(cardRect.height - tooltipHeight - 10, Math.max(10, event.clientY - cardRect.top - tooltipHeight - 12));
+    tooltip.style.left = `${left}px`;
+    tooltip.style.top = `${top}px`;
+  };
+  svg.querySelectorAll('.chart-hover-point').forEach((point) => {
+    point.addEventListener('mouseenter', (event) => showTooltip(point, event));
+    point.addEventListener('mousemove', (event) => showTooltip(point, event));
+    point.addEventListener('mouseleave', () => { if (tooltip) tooltip.hidden = true; });
+  });
   if (loading) loading.hidden = true;
 }
 

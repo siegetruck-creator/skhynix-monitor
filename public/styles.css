@@ -172,6 +172,11 @@ details.calculation-panel:not([open]) { padding-bottom: 14px; }
 #history-chart { display: block; width: 100%; height: 420px; }
 .history-loading { position: absolute; inset: 0; display: grid; place-items: center; color: var(--muted); font: 11px 'DM Mono', monospace; }
 .history-loading[hidden] { display: none; }
+.history-tooltip { position: absolute; z-index: 3; pointer-events: none; min-width: 150px; padding: 10px 12px; border: 1px solid rgba(85,228,193,.4); border-radius: 9px; background: rgba(7,17,31,.96); box-shadow: 0 10px 24px rgba(0,0,0,.25); color: var(--text); }
+.history-tooltip[hidden] { display: none; }
+.history-tooltip strong, .history-tooltip span { display: block; }
+.history-tooltip strong { color: var(--cyan); font-size: 11px; margin-bottom: 5px; }
+.history-tooltip span { color: #dbe7f3; font: 11px 'DM Mono', monospace; }
 .chart-grid-line { stroke: rgba(164,190,218,.12); stroke-width: 1; }
 .chart-grid-line.vertical { stroke-dasharray: 3 8; }
 .chart-axis-label { fill: #8095ad; font: 10px 'DM Mono', monospace; }
@@ -180,6 +185,7 @@ details.calculation-panel:not([open]) { padding-bottom: 14px; }
 .chart-now-label { fill: var(--cyan); font: 10px 'DM Mono', monospace; }
 .chart-future-label { fill: rgba(142,161,185,.65); font: 10px 'DM Mono', monospace; }
 .chart-current-dot { stroke: var(--panel); stroke-width: 2; }
+.chart-hover-point { fill: transparent; pointer-events: all; cursor: crosshair; }
 .history-footnote { margin: 10px 2px 0; color: var(--muted); font: 10px/1.6 'DM Mono', monospace; }
 @media (max-width: 600px) {
   .history-toolbar { align-items: flex-start; flex-direction: column; }
