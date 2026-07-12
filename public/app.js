@@ -63,6 +63,7 @@ function render(data) {
 
   setText('#krx-price', number(krx.price));
   setText('#adr-price', number(adr.price, 2));
+  setText('#adr-krw-equivalent', `${number(adr.price, 2)} USD = ${number(adr.price * fx.price * ratio)} KRW (보통주 1주 환산)`);
   setText('#fx-price', number(fx.price, 2));
   setText('#krx-change', signedPercent(krxChange));
   setText('#adr-change', signedPercent(adrChange));

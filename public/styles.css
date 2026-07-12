@@ -64,6 +64,7 @@ h2 em { color: var(--cyan); font-style: normal; }
 .quote-card h3 span { color: var(--blue); font: 500 11px 'DM Mono', monospace; margin-left: 4px; }
 .quote-price { display: flex; align-items: baseline; gap: 7px; font: 500 28px 'DM Mono', monospace; letter-spacing: -.06em; white-space: nowrap; }
 .quote-price small { color: var(--muted); font: 10px 'DM Mono', monospace; letter-spacing: 0; }
+.converted-price { min-height: 16px; margin-top: 5px; color: var(--cyan); font: 10px 'DM Mono', monospace; white-space: nowrap; }
 .quote-foot { justify-content: space-between; gap: 8px; border-top: 1px solid var(--line); margin-top: 21px; padding-top: 14px; font: 10px 'DM Mono', monospace; }
 .quote-foot span:last-child { color: var(--cyan); }
 .calculation-panel { padding: 24px 25px 21px; margin-bottom: 22px; }
