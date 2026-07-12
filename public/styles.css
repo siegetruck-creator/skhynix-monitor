@@ -204,4 +204,5 @@ details.calculation-panel:not([open]) { padding-bottom: 14px; }
   .history-card, #history-chart { min-height: 320px; height: 320px; }
   .history-card { overflow: hidden; }
   #history-chart { min-width: 0; width: 100%; }
+  .chart-axis-label { font-size: 26px; font-weight: 700; fill: #b7c9dc; }
 }
