@@ -143,7 +143,7 @@ function renderHistory(data) {
 
   const width = 1000;
   const height = 420;
-  const pad = { top: 22, right: 25, bottom: 48, left: 88 };
+  const pad = { top: 22, right: 25, bottom: 48, left: 72 };
   const plotWidth = width - pad.left - pad.right;
   const plotHeight = height - pad.top - pad.bottom;
   const series = [
