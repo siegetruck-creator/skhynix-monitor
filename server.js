@@ -102,6 +102,74 @@ function json(res, status, body) {
   res.end(JSON.stringify(body));
 }
 
+function requestNasdaqJson(url) {
+  return new Promise((resolve, reject) => {
+    const request = https.get(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/126 Safari/537.36',
+        Accept: 'application/json, text/plain, */*',
+        Origin: 'https://www.nasdaq.com'
+      }
+    }, (response) => {
+      let body = '';
+      response.setEncoding('utf8');
+      response.on('data', (chunk) => { body += chunk; });
+      response.on('end', () => {
+        if (response.statusCode < 200 || response.statusCode >= 300) {
+          reject(new Error(`Nasdaq returned ${response.statusCode}`));
+          return;
+        }
+        try {
+          resolve(JSON.parse(body));
+        } catch {
+          reject(new Error('Nasdaq returned invalid JSON'));
+        }
+      });
+    });
+    request.setTimeout(15000, () => request.destroy(new Error('Nasdaq request timed out')));
+    request.on('error', reject);
+  });
+}
+
+function parseMarketNumber(value) {
+  const number = Number(String(value ?? '').replace(/[^0-9.-]/g, ''));
+  return Number.isFinite(number) ? number : NaN;
+}
+
+function nasdaqMarketState(status) {
+  const value = String(status || '').toLowerCase();
+  if (value.includes('pre')) return 'PRE';
+  if (value.includes('after')) return 'POST';
+  if (value.includes('open') || value.includes('regular')) return 'REGULAR';
+  return 'CLOSED';
+}
+
+async function getNasdaqQuote(symbol) {
+  const url = `https://api.nasdaq.com/api/quote/${encodeURIComponent(symbol)}/info?assetclass=stocks`;
+  const payload = await requestNasdaqJson(url);
+  const data = payload?.data;
+  const price = parseMarketNumber(data?.primaryData?.lastSalePrice);
+  if (!data || !Number.isFinite(price)) throw new Error(`${symbol}: Nasdaq quote unavailable`);
+
+  const netChange = parseMarketNumber(data.primaryData?.netChange);
+  const secondaryClose = parseMarketNumber(data.secondaryData?.lastSalePrice);
+  const previousClose = Number.isFinite(secondaryClose)
+    ? secondaryClose
+    : (Number.isFinite(netChange) ? price - netChange : NaN);
+  const time = Date.parse(data.primaryData?.lastTradeTimestamp || '');
+
+  return {
+    symbol,
+    price,
+    previousClose,
+    currency: 'USD',
+    exchange: data.exchange || 'NASDAQ',
+    marketState: nasdaqMarketState(data.marketStatus),
+    marketTime: Number.isFinite(time) ? time : Date.now(),
+    points: []
+  };
+}
+
 function activeMarketSession(meta, now = Date.now()) {
   const periods = meta.currentTradingPeriod || {};
   for (const [state, period] of Object.entries({ PRE: periods.pre, REGULAR: periods.regular, POST: periods.post })) {
@@ -182,6 +250,18 @@ async function getAdrQuote(preferred, fallback) {
   }
 }
 
+async function getUsAdrQuote(preferred, fallback) {
+  try {
+    return await getNasdaqQuote(preferred);
+  } catch {
+    try {
+      return await getNasdaqQuote(fallback);
+    } catch {
+      return getAdrQuote(preferred, fallback);
+    }
+  }
+}
+
 async function getHistoryWithFallback(preferred, fallback) {
   try {
     return await getYahooHistory(preferred);
@@ -201,9 +281,9 @@ async function fetchMarketData() {
     getYahooQuote('KRW=X'),
     getYahooQuote('2330.TW'),
     getYahooQuote('TWD=X'),
-    getAdrQuote(adrCandidates[0], adrCandidates[1])
+    getUsAdrQuote(adrCandidates[0], adrCandidates[1])
   ]);
-  const tsmcAdr = await getYahooQuote('TSM');
+  const tsmcAdr = await getUsAdrQuote('TSM', 'TSM');
 
   return {
     fetchedAt: Date.now(),
