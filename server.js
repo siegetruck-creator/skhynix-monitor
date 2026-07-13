@@ -102,6 +102,25 @@ function json(res, status, body) {
   res.end(JSON.stringify(body));
 }
 
+function activeMarketSession(meta, now = Date.now()) {
+  const periods = meta.currentTradingPeriod || {};
+  for (const [state, period] of Object.entries({ PRE: periods.pre, REGULAR: periods.regular, POST: periods.post })) {
+    const start = Number(period?.start) * 1000;
+    const end = Number(period?.end) * 1000;
+    if (Number.isFinite(start) && Number.isFinite(end) && now >= start && now < end) {
+      return { state, start, end };
+    }
+  }
+  return { state: meta.marketState || 'CLOSED', start: NaN, end: NaN };
+}
+
+function latestPriceInSession(points, session) {
+  if (!Number.isFinite(session.start) || !Number.isFinite(session.end)) return null;
+  return [...points]
+    .reverse()
+    .find((point) => point.time >= session.start && point.time < session.end) || null;
+}
+
 async function getYahooQuote(symbol) {
   const url = `${yahooBase}${encodeURIComponent(symbol)}?interval=1m&range=1d&includePrePost=true`;
   const payload = await requestJson(url);
@@ -112,10 +131,6 @@ async function getYahooQuote(symbol) {
   const timestamps = result.timestamp || [];
   const quote = result.indicators?.quote?.[0] || {};
   const closes = quote.close || [];
-  const lastIntradayClose = [...closes].reverse().find((value) => Number.isFinite(value));
-  const price = Number(meta.regularMarketPrice ?? lastIntradayClose);
-  if (!Number.isFinite(price)) throw new Error(`${symbol}: invalid price`);
-
   const points = timestamps
     .map((timestamp, index) => ({
       time: timestamp * 1000,
@@ -123,14 +138,25 @@ async function getYahooQuote(symbol) {
     }))
     .filter((point) => Number.isFinite(point.price));
 
+  // For US symbols Yahoo includes pre-market and after-hours one-minute bars.
+  // Use them only while their session is open; after the session ends, keep the regular close.
+  const session = activeMarketSession(meta);
+  const extendedPoint = session.state === 'PRE' || session.state === 'POST'
+    ? latestPriceInSession(points, session)
+    : null;
+  const lastIntradayClose = points.at(-1)?.price;
+  const regularPrice = Number(meta.regularMarketPrice ?? lastIntradayClose);
+  const price = extendedPoint?.price ?? regularPrice;
+  if (!Number.isFinite(price)) throw new Error(`${symbol}: invalid price`);
+
   return {
     symbol,
     price,
     previousClose: Number(meta.previousClose ?? meta.chartPreviousClose ?? NaN),
     currency: meta.currency || '',
     exchange: meta.fullExchangeName || meta.exchangeName || '',
-    marketState: meta.marketState || 'UNKNOWN',
-    marketTime: Number(meta.regularMarketTime || timestamps[timestamps.length - 1] || 0) * 1000,
+    marketState: session.state,
+    marketTime: extendedPoint?.time ?? Number(meta.regularMarketTime || timestamps[timestamps.length - 1] || 0) * 1000,
     points
   };
 }
