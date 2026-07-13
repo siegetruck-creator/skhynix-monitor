@@ -1,297 +1,53 @@
 const $ = (selector) => document.querySelector(selector);
-const history = [];
-const tsmcHistory = [];
-const historyVisibility = { sk: true, tsmc: true };
-let renderedHistoryData = null;
-const refreshIntervalSeconds = 300;
-let secondsUntilRefresh = refreshIntervalSeconds;
+let analysis;
+let analyses = [];
+let currentIndex = 0;
 
-const number = (value, digits = 0) => Number.isFinite(value) ? value.toLocaleString('ko-KR', { maximumFractionDigits: digits, minimumFractionDigits: digits }) : '—';
-const signedPercent = (value) => Number.isFinite(value) ? `${value >= 0 ? '+' : ''}${value.toFixed(2)}%` : '—';
-const time = (value) => value ? new Intl.DateTimeFormat('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false, timeZone: 'Asia/Seoul' }).format(new Date(value)) : '—';
-const marketState = (state) => ({ REGULAR: '장중', PRE: '프리마켓', POST: '애프터', CLOSED: '장 마감' }[state] || '확인 중');
-const refreshLabel = (seconds) => `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
-
-function setText(selector, value) {
-  const element = $(selector);
-  if (element) element.textContent = value;
+const korean = (value) => ({ high: '높음', medium: '보통', low: '낮음', Unclassified: '미구분' }[value] || value);
+function note(text, bad = false) { const el = $('#message'); el.textContent = text; el.className = `message ${bad ? 'bad' : ''}`; el.hidden = false; }
+function list(id, values) { $(id).innerHTML = (values?.length ? values : ['검토 필요']).map((x) => `<li>${x}</li>`).join(''); }
+function fmt(metric) { return typeof metric.value === 'number' ? new Intl.NumberFormat('ko-KR', { maximumFractionDigits: 2 }).format(metric.value) : '검토 필요'; }
+function drawChart(metrics) { const data = metrics.filter((m) => typeof m.value === 'number').slice(0, 5); const max = Math.max(...data.map((m) => Math.abs(m.value)), 1); $('#chart').innerHTML = data.length ? data.map((m) => `<div class="bar-row"><span>${m.name}</span><div class="bar"><i style="width:${Math.max(4, Math.abs(m.value) / max * 100)}%"></i></div><b>${fmt(m)}</b></div>`).join('') : '<p>그래프로 표시할 확인된 수치가 없습니다. 검토 필요</p>'; }
+function drawTrend(items) {
+  const values = items.filter((item) => typeof item.revenue === 'number');
+  const max = Math.max(...values.map((item) => Math.abs(item.revenue)), 1);
+  $('#trend-chart').innerHTML = values.length ? values.map((item) => `<div class="bar-row"><span>${item.quarter}</span><div class="bar"><i style="width:${Math.max(4, Math.abs(item.revenue) / max * 100)}%"></i></div><b>매출 ${new Intl.NumberFormat('ko-KR').format(item.revenue)}${item.operating_margin === null ? '' : ` · 영업이익률 ${item.operating_margin}%`}</b></div>`).join('') : '<p>아직 누적된 같은 기업의 저장 자료가 부족합니다. 앞으로 저장하는 분석부터 추세에 반영됩니다.</p>';
 }
-
-function setTrend(selector, value) {
-  const element = $(selector);
-  if (!element) return;
-  element.classList.toggle('positive', value >= 0);
-  element.classList.toggle('negative', value < 0);
-}
-
-function quoteChange(quote) {
-  return Number.isFinite(quote.price) && Number.isFinite(quote.previousClose) && quote.previousClose !== 0
-    ? (quote.price / quote.previousClose - 1) * 100
-    : NaN;
-}
-
-function renderSparkline(values, premium) {
-  const svg = $('#premium-sparkline');
-  if (!svg) return;
-  if (values.length < 2) {
-    svg.innerHTML = '<line x1="0" y1="46" x2="480" y2="46" stroke="rgba(142,161,185,.25)" stroke-dasharray="4 6" />';
-    return;
-  }
-  const min = Math.min(...values, 0);
-  const max = Math.max(...values, 0);
-  const span = Math.max(max - min, 0.01);
-  const points = values.map((value, index) => {
-    const x = (index / (values.length - 1)) * 480;
-    const y = 82 - ((value - min) / span) * 67;
-    return `${x.toFixed(1)},${y.toFixed(1)}`;
-  }).join(' ');
-  const zeroY = 82 - ((0 - min) / span) * 67;
-  const color = premium >= 0 ? '#55e4c1' : '#ff7d85';
-  const lastPoint = points.split(' ')[points.split(' ').length - 1];
-  svg.innerHTML = `<line x1="0" y1="${zeroY.toFixed(1)}" x2="480" y2="${zeroY.toFixed(1)}" stroke="rgba(142,161,185,.23)" stroke-dasharray="4 6" /><polyline points="${points}" fill="none" stroke="${color}" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" /><circle cx="480" cy="${lastPoint.split(',')[1]}" r="3.5" fill="${color}" />`;
-}
-
-function render(data) {
-  const { krx, adr, fx, ratio } = data;
-  const krxChange = quoteChange(krx);
-  const adrChange = quoteChange(adr);
-  const fairPrice = krx.price / fx.price / ratio;
-  const premium = ((adr.price - fairPrice) / fairPrice) * 100;
-
-  history.push(premium);
-  if (history.length > 45) history.shift();
-
-  setText('#krx-price', number(krx.price));
-  setText('#adr-price', number(adr.price, 2));
-  setText('#adr-krw-equivalent', `${number(adr.price, 2)} USD = ${number(adr.price * fx.price * ratio)} KRW (보통주 1주 환산)`);
-  setText('#fx-price', number(fx.price, 2));
-  setText('#krx-change', signedPercent(krxChange));
-  setText('#adr-change', signedPercent(adrChange));
-  setText('#krx-market-state', marketState(krx.marketState));
-  setText('#adr-market-state', marketState(adr.marketState));
-  setText('#krx-status', `KRX ${marketState(krx.marketState)}`);
-  setText('#adr-status', `NASDAQ ${marketState(adr.marketState)}`);
-  setText('#adr-symbol', adr.symbol);
-  setText('#calc-krw', number(krx.price));
-  setText('#calc-fx', number(fx.price, 2));
-  setText('#fair-price', `$${number(fairPrice, 2)}`);
-  setText('#formula-result', signedPercent(premium));
-  setText('#premium-value', signedPercent(premium));
-  setText('#premium-label', premium >= 0 ? 'ADR 고평가' : 'ADR 저평가');
-  setText('#premium-caption', `실제 ADR $${number(adr.price, 2)} · 이론가격 $${number(fairPrice, 2)}`);
-  setText('#overview-sk-premium', signedPercent(premium));
-  setText('#overview-sk-caption', `실제 $${number(adr.price, 2)} · 이론 $${number(fairPrice, 2)}`);
-  setText('#last-updated', time(data.fetchedAt));
-  setText('#updated-at', time(fx.marketTime || data.fetchedAt));
-  setText('#data-source', `데이터 출처: Yahoo Finance · 조회 ${time(data.fetchedAt)}`);
-
-  const premiumElement = $('#premium-value');
-  if (premiumElement) {
-    premiumElement.classList.toggle('positive', premium >= 0);
-    premiumElement.classList.toggle('negative', premium < 0);
-    premiumElement.classList.remove('neutral');
-  }
-  setTrend('#overview-sk-premium', premium);
-  renderSparkline(history, premium);
-  renderTsmc(data);
-}
-
-function renderTsmc(data) {
-  const { local, adr, fx, ratio } = data.tsmc;
-  const localChange = quoteChange(local);
-  const adrChange = quoteChange(adr);
-  const fairPrice = local.price * ratio / fx.price;
-  const premium = ((adr.price - fairPrice) / fairPrice) * 100;
-
-  tsmcHistory.push(premium);
-  if (tsmcHistory.length > 45) tsmcHistory.shift();
-
-  setText('#tsmc-local-price', number(local.price, 2));
-  setText('#tsmc-adr-price', number(adr.price, 2));
-  setText('#tsmc-fx-price', number(fx.price, 4));
-  setText('#tsmc-local-change', signedPercent(localChange));
-  setText('#tsmc-adr-change', signedPercent(adrChange));
-  setText('#tsmc-local-market-state', marketState(local.marketState));
-  setText('#tsmc-adr-market-state', marketState(adr.marketState));
-  setText('#tsmc-calc-local', number(local.price, 2));
-  setText('#tsmc-calc-fx', number(fx.price, 4));
-  setText('#tsmc-fair-price', `$${number(fairPrice, 2)}`);
-  setText('#tsmc-formula-result', signedPercent(premium));
-  setText('#tsmc-premium-value', signedPercent(premium));
-  setText('#tsmc-premium-label', premium >= 0 ? 'ADR 고평가' : 'ADR 저평가');
-  setText('#tsmc-premium-caption', `실제 ADR $${number(adr.price, 2)} · 이론가격 $${number(fairPrice, 2)}`);
-  setText('#overview-tsmc-premium', signedPercent(premium));
-  setText('#overview-tsmc-caption', `실제 ADR $${number(adr.price, 2)} · 이론 $${number(fairPrice, 2)}`);
-  setText('#tsmc-last-updated', time(data.fetchedAt));
-  setText('#tsmc-updated-at', time(fx.marketTime || data.fetchedAt));
-
-  const premiumElement = $('#tsmc-premium-value');
-  if (premiumElement) {
-    premiumElement.classList.toggle('positive', premium >= 0);
-    premiumElement.classList.toggle('negative', premium < 0);
-    premiumElement.classList.remove('neutral');
-  }
-  setTrend('#overview-tsmc-premium', premium);
-  renderSparkline(tsmcHistory, premium);
-}
-
-function renderHistory(data) {
-  renderedHistoryData = data;
-  const svg = $('#history-chart');
-  const loading = $('#history-loading');
-  if (!svg) return;
-
-  const width = 1000;
-  const height = 420;
-  const pad = { top: 22, right: 25, bottom: 48, left: 72 };
-  const plotWidth = width - pad.left - pad.right;
-  const plotHeight = height - pad.top - pad.bottom;
-  const series = [
-    { key: 'sk', values: data.sk, color: '#55e4c1', name: 'SK하이닉스 ADR' },
-    { key: 'tsmc', values: data.tsmc, color: '#7ba9ff', name: 'TSMC ADR' }
-  ];
-  const allPoints = series.flatMap((item) => item.values);
-  const startTime = Math.min(...allPoints.map((point) => new Date(point.date).getTime()));
-  const currentTime = new Date(data.currentMonth).getTime();
-  const endDate = new Date(data.currentMonth);
-  endDate.setUTCMonth(endDate.getUTCMonth() + 12);
-  const endTime = endDate.getTime();
-  const values = allPoints.map((point) => point.premium).filter(Number.isFinite);
-  if (!values.length) throw new Error('그래프로 표시할 프리미엄 데이터가 없습니다.');
-  const min = -10;
-  const max = 40;
-  const x = (timeValue) => pad.left + ((timeValue - startTime) / (endTime - startTime)) * plotWidth;
-  const y = (value) => pad.top + ((max - value) / (max - min)) * plotHeight;
-  const pathFor = (points) => {
-    let path = '';
-    let connected = false;
-    for (const point of points) {
-      if (!Number.isFinite(point.premium)) {
-        continue;
-      }
-      path += `${connected ? 'L' : 'M'}${x(new Date(point.date).getTime()).toFixed(1)},${y(point.premium).toFixed(1)} `;
-      connected = true;
-    }
-    return path.trim();
-  };
-  const grid = [];
-  for (let index = 0; index <= 5; index += 1) {
-    const value = max - ((max - min) * index / 5);
-    const lineY = y(value);
-    const axisLabel = `${value >= 0 ? '+' : ''}${Math.round(value)}%`;
-    grid.push(`<line x1="${pad.left}" y1="${lineY.toFixed(1)}" x2="${width - pad.right}" y2="${lineY.toFixed(1)}" class="chart-grid-line" /><text x="${pad.left - 10}" y="${(lineY + 4).toFixed(1)}" text-anchor="end" class="chart-axis-label">${axisLabel}</text>`);
-  }
-  const ticks = [];
-  const startYear = new Date(startTime).getUTCFullYear();
-  const endYear = endDate.getUTCFullYear();
-  for (let year = startYear; year <= endYear; year += 2) {
-    const tickTime = Date.UTC(year, 0, 1);
-    if (tickTime < startTime || tickTime > endTime) continue;
-    const tickX = x(tickTime);
-    ticks.push(`<line x1="${tickX.toFixed(1)}" y1="${pad.top}" x2="${tickX.toFixed(1)}" y2="${height - pad.bottom}" class="chart-grid-line vertical" /><text x="${tickX.toFixed(1)}" y="${height - 18}" text-anchor="middle" class="chart-axis-label">${year}</text>`);
-  }
-  const lastPoint = (points) => [...points].reverse().find((point) => Number.isFinite(point.premium));
-  const currentDots = [...series].filter((item) => historyVisibility[item.key]).reverse().map((item) => {
-    const point = lastPoint(item.values);
-    return point ? `<circle cx="${x(new Date(point.date).getTime()).toFixed(1)}" cy="${y(point.premium).toFixed(1)}" r="6" fill="${item.color}" class="chart-current-dot" />` : '';
-  }).join('');
-  const paths = series.filter((item) => historyVisibility[item.key]).map((item) => `<path d="${pathFor(item.values)}" fill="none" stroke="${item.color}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />`).join('');
-  const hoverPoints = series.filter((item) => historyVisibility[item.key]).flatMap((item) => item.values.filter((point) => Number.isFinite(point.premium)).map((point) => {
-    const pointX = x(new Date(point.date).getTime()).toFixed(1);
-    const pointY = y(point.premium).toFixed(1);
-    return `<circle cx="${pointX}" cy="${pointY}" r="8" class="chart-hover-point" data-date="${point.date}" />`;
-  })).join('');
-  const hoverLayer = `<rect x="${pad.left}" y="${pad.top}" width="${plotWidth}" height="${plotHeight}" class="chart-hover-layer" />`;
-  svg.innerHTML = `${grid.join('')}${ticks.join('')}${paths}${hoverPoints}${hoverLayer}${currentDots}`;
-  const tooltip = $('#history-tooltip');
-  const card = svg.closest('.history-card');
-  const dateTimes = [...new Set(allPoints.map((point) => new Date(point.date).getTime()))].sort((a, b) => a - b);
-  const showTooltip = (dateTime, event) => {
-    if (!tooltip || !card) return;
-    const month = new Intl.DateTimeFormat('ko-KR', { year: 'numeric', month: 'long', timeZone: 'UTC' }).format(new Date(dateTime));
-    const rows = series.filter((item) => historyVisibility[item.key]).map((item) => {
-      const point = item.values.find((value) => new Date(value.date).getTime() === dateTime);
-      if (!point || !Number.isFinite(point.premium)) return '';
-      return `<span><i class="tooltip-dot" style="background:${item.color}"></i>${item.name} <b>${point.premium >= 0 ? '+' : ''}${point.premium.toFixed(1)}%</b></span>`;
-    }).filter(Boolean).join('');
-    if (!rows) { tooltip.hidden = true; return; }
-    tooltip.innerHTML = `<strong>${month}</strong>${rows}`;
-    tooltip.hidden = false;
-    const cardRect = card.getBoundingClientRect();
-    const tooltipWidth = tooltip.offsetWidth;
-    const tooltipHeight = tooltip.offsetHeight;
-    const left = Math.min(cardRect.width - tooltipWidth - 10, Math.max(10, event.clientX - cardRect.left + 12));
-    const top = Math.min(cardRect.height - tooltipHeight - 10, Math.max(10, event.clientY - cardRect.top - tooltipHeight - 12));
-    tooltip.style.left = `${left}px`;
-    tooltip.style.top = `${top}px`;
-  };
-  const hoverLayerElement = svg.querySelector('.chart-hover-layer');
-  hoverLayerElement?.addEventListener('mousemove', (event) => {
-    const bounds = svg.getBoundingClientRect();
-    const svgX = ((event.clientX - bounds.left) / bounds.width) * width;
-    const timeAtPointer = startTime + ((svgX - pad.left) / plotWidth) * (endTime - startTime);
-    if (timeAtPointer > currentTime) { tooltip.hidden = true; return; }
-    const nearest = dateTimes.reduce((best, candidate) => Math.abs(candidate - timeAtPointer) < Math.abs(best - timeAtPointer) ? candidate : best, dateTimes[0]);
-    showTooltip(nearest, event);
-  });
-  hoverLayerElement?.addEventListener('mouseleave', () => { if (tooltip) tooltip.hidden = true; });
-  document.querySelectorAll('.history-legend-item').forEach((button) => {
-    const key = button.dataset.series;
-    button.classList.toggle('is-disabled', !historyVisibility[key]);
-    button.setAttribute('aria-pressed', String(historyVisibility[key]));
-    button.onclick = () => {
-      historyVisibility[key] = !historyVisibility[key];
-      if (renderedHistoryData) renderHistory(renderedHistoryData);
-    };
-  });
-  if (loading) loading.hidden = true;
-}
-
-async function loadMarketData() {
-  const button = $('#refresh-button');
-  button?.classList.add('loading');
+async function loadTrends(ticker) {
+  $('#trend-chart').innerHTML = '<p>Notion에 저장된 분기 자료를 확인하고 있습니다.</p>';
   try {
-    // Allow the page to work both from localhost and when index.html was opened directly.
-    const apiBase = window.location.protocol === 'file:' ? 'http://localhost:3000/api/market' : '/api/market';
-    const response = await fetch(`${apiBase}?ts=${Date.now()}`, { cache: 'no-store' });
-    const data = await response.json();
-    if (!response.ok) throw new Error(data.error || '시장 데이터를 불러오지 못했습니다.');
-    if (!Number.isFinite(data.krx?.price) || !Number.isFinite(data.adr?.price) || !Number.isFinite(data.fx?.price) || !Number.isFinite(data.tsmc?.local?.price) || !Number.isFinite(data.tsmc?.adr?.price) || !Number.isFinite(data.tsmc?.fx?.price)) {
-      throw new Error('국내주식·ADR·환율 중 일부 가격이 비어 있습니다. 잠시 후 다시 시도해 주세요.');
-    }
-    render(data);
-    $('#error-banner').hidden = true;
-  } catch (error) {
-    const banner = $('#error-banner');
-    banner.textContent = `데이터를 불러오지 못했습니다: ${error.message}`;
-    banner.hidden = false;
-  } finally {
-    button?.classList.remove('loading');
-    secondsUntilRefresh = refreshIntervalSeconds;
-  }
+    const response = await fetch(`/api/trends?ticker=${encodeURIComponent(ticker)}`); const data = await response.json(); if (!response.ok) throw new Error(data.error);
+    drawTrend(data.trend || []);
+    const rows = (data.guidanceHistory || []).filter((item) => item.guidance?.length);
+    $('#guidance-history').innerHTML = rows.length ? rows.map((item) => `<article class="guidance-row"><b>${item.quarter}</b><span>${item.guidance.map((text) => `<div>${text}</div>`).join('')}</span></article>`).join('') : '<p>비교할 이전 가이던스가 아직 없습니다.</p>';
+  } catch (error) { $('#trend-chart').innerHTML = `<p>추세를 불러오지 못했습니다: ${error.message}</p>`; $('#guidance-history').innerHTML = ''; }
+}
+function renderCurrent() {
+  analysis = analyses[currentIndex];
+  const a = analysis;
+  $('#review').hidden = false;
+  $('#title').textContent = `${a.meta.company} ${a.meta.quarter} 분석 초안`;
+  $('#batch-status').textContent = analyses.length > 1 ? `${currentIndex + 1} / ${analyses.length}번째 파일: ${a.meta.filename}` : '아래 근거를 확인한 후에만 저장해 주세요.';
+  $('#summary').textContent = a.summary || '검토 필요'; $('#investor-summary').textContent = a.investor_summary || '검토 필요'; list('#guidance', a.guidance); list('#comments', a.management_comments); list('#implications', a.investment_implications);
+  $('#metrics').innerHTML = a.metrics.map((m) => `<tr><td>${m.name}${m.review_required ? '<em>검토 필요</em>' : ''}</td><td>${fmt(m)}<small>${m.currency} ${m.unit}</small></td><td>${korean(m.accounting)}<small>${m.period}</small></td><td><b>${m.filename}</b> · ${m.page ? `${m.page}쪽` : '쪽수 확인 필요'}<br><q>${m.source_sentence || '원문 근거 없음'}</q></td><td>${korean(m.confidence)}${m.review_reason ? `<small>${m.review_reason}</small>` : ''}</td></tr>`).join('') || '<tr><td colspan="5">추출된 숫자가 없습니다. 검토 필요</td></tr>';
+  $('#calcs').innerHTML = a.calculations.items.map((x) => `<div><b>${x.name}</b><strong>${x.value === null ? '검토 필요' : `${x.value}%`}</strong><small>${x.reason}</small></div>`).join('');
+  drawChart(a.metrics); $('#notion').disabled = false; $('#previous').disabled = currentIndex === 0; $('#next').disabled = currentIndex === analyses.length - 1; loadTrends(a.meta.ticker);
 }
 
-async function loadHistoryData() {
-  try {
-    const response = await fetch(`/api/history?ts=${Date.now()}`, { cache: 'no-store' });
-    const data = await response.json();
-    if (!response.ok) throw new Error(data.error || '과거 데이터를 불러오지 못했습니다.');
-    renderHistory(data);
-  } catch (error) {
-    const loading = $('#history-loading');
-    if (loading) {
-      loading.hidden = false;
-      loading.textContent = `과거 데이터를 불러오지 못했습니다: ${error.message}`;
-    }
-  }
-}
-
-$('#refresh-button')?.addEventListener('click', loadMarketData);
-setInterval(() => {
-  secondsUntilRefresh = Math.max(0, secondsUntilRefresh - 1);
-  setText('#refresh-countdown', refreshLabel(secondsUntilRefresh));
-  if (secondsUntilRefresh === 0) loadMarketData();
-}, 1000);
-
-loadMarketData();
-loadHistoryData();
+$('#form').addEventListener('submit', async (event) => {
+  event.preventDefault(); const button = $('#analyze'); const fileCount = event.target.querySelector('input[name="files"]').files.length;
+  button.disabled = true; note(`${fileCount}개 파일을 순서대로 분석하고 있습니다. 파일 수에 따라 시간이 걸릴 수 있습니다.`);
+  try { const response = await fetch('/api/analyze', { method: 'POST', body: new FormData(event.target) }); const data = await response.json(); if (!response.ok) throw new Error(data.error); analyses = data.analyses || [data]; currentIndex = 0; $('#message').hidden = true; renderCurrent(); $('#review').scrollIntoView({ behavior: 'smooth' }); }
+  catch (error) { note(`분석하지 못했습니다: ${error.message}`, true); }
+  finally { button.disabled = false; }
+});
+$('#previous').addEventListener('click', () => { if (currentIndex > 0) { currentIndex -= 1; renderCurrent(); } });
+$('#next').addEventListener('click', () => { if (currentIndex < analyses.length - 1) { currentIndex += 1; renderCurrent(); } });
+$('#notion').addEventListener('click', async () => {
+  if (!confirm('현재 파일의 분석 결과와 출처를 확인했습니다. 이 내용만 Notion에 저장할까요?')) return;
+  const button = $('#notion'); button.disabled = true;
+  try { const response = await fetch('/api/notion', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ approved: true, analysis }) }); const data = await response.json(); if (!response.ok) throw new Error(data.error); note('현재 파일의 분석 결과를 Notion에 저장했습니다.'); window.open(data.url, '_blank'); }
+  catch (error) { note(`Notion에 저장하지 못했습니다: ${error.message}`, true); }
+  finally { button.disabled = false; }
+});
+fetch('/api/health').then((r) => r.json()).then((data) => { $('#health').textContent = data.configured ? '설정 파일 확인됨' : '설정 파일 없음'; }).catch(() => { $('#health').textContent = '연결 확인 필요'; });
